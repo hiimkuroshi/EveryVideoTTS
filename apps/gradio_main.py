@@ -2178,36 +2178,33 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
 
     with gr.Column(elem_classes="container"):
         gr.HTML("""
-<div class="header-box">
-    <h1 class="header-title">
-        <span class="header-icon">🎬</span>
-        <span class="gradient-text">EveryVideoTTS Studio</span>
-    </h1>
-    <div class="model-card-content">
-        <div class="model-card-item">
-            <strong>Tác giả:</strong>
-            <a href="https://github.com/hiimkuroshi" target="_blank" class="model-card-link">Tyr</a>
+<div class="studio-header">
+    <div class="header-top-row">
+        <div class="header-brand">
+            <div class="header-logo-icon">🎬</div>
+            <div>
+                <h1 class="header-title-text">EveryVideoTTS Studio</h1>
+                <div class="header-subtitle">Vietnamese AI Text-to-Speech · Voice Cloning · Video SRT Dubbing</div>
+            </div>
         </div>
-        <div class="model-card-item">
-            <strong>Repository:</strong>
-            <a href="https://github.com/hiimkuroshi/VieNeu-TTS-Studio" target="_blank" class="model-card-link">VieNeu-TTS-Studio</a>
-        </div>
-        <div class="model-card-item">
-            <strong>Features:</strong>
-            <span class="model-card-link">TTS · Voice Clone · Lồng tiếng SRT</span>
+        <div class="header-chips-row">
+            <a href="https://github.com/hiimkuroshi" target="_blank" class="chip-item chip-author">
+                <span>👤</span> Tác giả: Tyr
+            </a>
+            <a href="https://github.com/hiimkuroshi/VieNeu-TTS-Studio" target="_blank" class="chip-item chip-repo">
+                <span>⭐</span> VieNeu-TTS-Studio
+            </a>
+            <span class="chip-item chip-badge">
+                <span>⚡</span> 48 kHz Studio Quality
+            </span>
         </div>
     </div>
 </div>
         """)
         
-        # --- CONFIGURATION ---
-        with gr.Group():
+        # --- MODEL CONFIGURATION PANEL ---
+        with gr.Group(elem_classes="control-panel-card"):
             with gr.Row():
-                # --- BACKBONE & CODEC DEFAULT LOGIC ---
-                # GPU users default to VieNeu-TTS-v3-Turbo (GPU); CPU-only users get v3 Turbo
-                # (the only CPU backbone). v3 (GPU) is registered solely when HAS_GPU.
-                # int8 là entry đầu tiên → mặc định trên cả CPU lẫn GPU (trên GPU dùng
-                # PyTorch nên int8/fp32 như nhau; trên CPU int8 nhanh nhất).
                 default_backbone = list(BACKBONE_CONFIGS.keys())[0]
                 
                 # Default parameters based on backbone
@@ -2228,23 +2225,28 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                     default_temp = 0.7
                     default_text = DEFAULT_TEXT_GPU
 
-                # v3 Turbo batches chunks through the serving engine → default 32.
-                # Must be set at creation: v3 is the default backbone, so the
-                # on_backbone_change handler (which also sets 32) never fires on load.
                 default_batch_size = 32 if "v3" in default_backbone.lower() else 4
 
                 backbone_select = gr.Dropdown(
                     list(BACKBONE_CONFIGS.keys()) + ["Custom Model"],
                     value=default_backbone,
-                    label="🦜 Backbone"
+                    label="🦜 Chọn Mô hình (Backbone)",
+                    scale=2
                 )
                 codec_select = gr.Dropdown(
                     list(CODEC_CONFIGS.keys()), 
                     value=default_codec, 
-                    label="🎵 Codec",
-                    interactive=False
+                    label="🎵 Audio Codec",
+                    interactive=False,
+                    scale=1
                 )
-                device_choice = gr.Radio(get_available_devices(), value="Auto", label="🖥️ Device")
+                device_choice = gr.Radio(
+                    get_available_devices(), 
+                    value="Auto", 
+                    label="🖥️ Thiết bị xử lý (Device)",
+                    scale=1
+                )
+                btn_load = gr.Button("🔄 Tải Model", variant="primary", scale=1, elem_classes="btn-primary-action")
             
             with gr.Row(visible=False) as custom_model_group:
                 custom_backbone_model_id = gr.Textbox(
@@ -2274,57 +2276,19 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                 use_lmdeploy_cb = gr.Checkbox(
                     value=True,
                     label="🚀 Optimize with LMDeploy (Khuyên dùng cho NVIDIA GPU)",
-                    info="Tick nếu bạn dùng GPU để tăng tốc độ tổng hợp đáng kể.",
-                    visible="v3" not in default_backbone.lower(),  # v3 Turbo (PyTorch) không dùng LMDeploy
+                    info="Tăng tốc độ tổng hợp đáng kể trên GPU NVIDIA.",
+                    visible="v3" not in default_backbone.lower(),
                 )
             
-            
-            gr.Markdown("""
-            💡 **Sử dụng Custom Model:** Chọn "Custom Model" để tải LoRA adapter hoặc bất kỳ model nào được finetune từ **VieNeu-TTS** hoặc **VieNeu-TTS-0.3B**.
-            """)
-            
-            gr.HTML("""
-            <div class="warning-banner">
-                <div class="warning-banner-title">
-                    🦜 Gợi ý tối ưu hiệu năng
-                </div>
-                <div class="warning-banner-grid">
-                    <div class="warning-banner-item">
-                        <strong>🐆 Hệ máy GPU</strong>
-                        <div class="warning-banner-content">
-                            <b>VieNeu-TTS-v3-Turbo (early access)</b> đã được phát hành để dùng thử trước, đã hỗ trợ các tag cảm xúc `[cười]` `[hắng giọng]` `[thở dài]`, tuy nhiên những tính năng này vẫn đang được thử nghiệm và chưa thực sự ổn định, có thể sẽ xảy ra lỗi không mong muốn, nếu có lỗi các bạn hãy thông báo với chúng tôi tại: https://discord.com/invite/yJt8kzjzWZ. Trong trường hợp bạn cần sự ổn định hãy sử dụng <b>VieNeu-TTS-v2 (GPU)</b>. 
-                        </div>
-                    </div>
-                    <div class="warning-banner-item" style="background: #dcfce7; border-color: #86efac;">
-                        <strong style="color: #15803d;">🐢 Hệ máy CPU</strong>
-                        <div class="warning-banner-content" style="color: #166534;">
-                            Máy <b>CPU</b> nên dùng bản <b>VieNeu-TTS-v3-Turbo (int8)</b> để tốc độ tối đa. Chuyển sang <b>VieNeu-TTS-v3-Turbo</b> nếu cần chất lượng cao hơn (nhưng chậm hơn trên CPU).
-                        </div>
-                    </div>
-                </div>
-                <div style="margin-top: 12px; font-size: 0.85rem; color: #92400e; border-top: 1px dashed #fcd34d; padding-top: 8px;">
-                    💡 <b>Mẹo:</b> Nếu máy bạn có GPU mà không thấy các phiên bản GPU hãy xem lại cách cài đặt uv sync --group gpu
-                </div>
-            </div>
-            """)
-
-            gr.Markdown(
-                "🆕 **VieNeu-TTS-v3-Turbo (early access)** đã được phát hành để **dùng thử trước** — "
-                "48kHz, **hỗ trợ Voice Cloning** (tính năng clone chỉ có từ **v3** trở lên; v1/v2 không hỗ trợ). "
-                "Bản **v3 đầy đủ** sẽ ra mắt trong **vài tuần tới**.\n\n"
-                "🎭 v3 Turbo đã **hỗ trợ các tag cảm xúc** `[cười]` `[hắng giọng]` `[thở dài]` "
-                "(chèn trực tiếp vào văn bản) — nhưng tính năng này **đang thử nghiệm và chưa thực sự ổn định**."
-            )
-
-            btn_load = gr.Button("🔄 Tải Model", variant="primary")
-            model_status = gr.Markdown("⏳ Chưa tải model.")
+            with gr.Row():
+                model_status = gr.Markdown("⏳ Chưa tải model.")
         
         with gr.Row(elem_classes="container"):
             # --- INPUT ---
             with gr.Column(scale=3):
                 with gr.Tabs() as main_input_tabs:
                     # --- TAB 1: SINGLE SPEAKER ---
-                    with gr.Tab("🦜 Đọc truyện", id="single_tab") as single_tab:
+                    with gr.Tab("🎙️ Đọc văn bản", id="single_tab") as single_tab:
                         with gr.Accordion("📄 Tải lên PDF để trích xuất văn bản", open=False):
                             gr.Markdown(
                                 "Tải lên file PDF, văn bản sẽ được tự động trích xuất và điền vào ô bên dưới. "
@@ -2340,24 +2304,28 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                                 )
                                 btn_extract_pdf = gr.Button("📄 Trích xuất văn bản", variant="secondary", scale=1, min_width=150)
                             pdf_status = gr.Markdown(visible=False)
+                        
                         text_input = gr.Textbox(
-                            label=f"Văn bản",
-                            lines=8,
+                            label="Nội dung văn bản",
+                            lines=7,
                             value=default_text,
+                            placeholder="Nhập nội dung văn bản tiếng Việt bạn muốn chuyển thành giọng nói..."
                         )
+
+                        gr.HTML("""
+                        <div class="emotion-tag-container">
+                            <span style="font-size: 0.82rem; color: #64748b; font-weight: 600;">✨ Tag cảm xúc gợi ý (v3 Turbo):</span>
+                            <span class="emotion-tag-pill">😄 [cười]</span>
+                            <span class="emotion-tag-pill">🗣️ [hắng giọng]</span>
+                            <span class="emotion-tag-pill">💨 [thở dài]</span>
+                        </div>
+                        """)
                         
                         with gr.Tabs() as tabs:
-                            with gr.TabItem("👤 Preset", id="preset_mode") as tab_preset:
-                                voice_select = gr.Dropdown(choices=[], value=None, label="Giọng mẫu", allow_custom_value=True)
+                            with gr.TabItem("👤 Giọng đọc mẫu (Preset)", id="preset_mode") as tab_preset:
+                                voice_select = gr.Dropdown(choices=[], value=None, label="🎤 Danh sách giọng mẫu", allow_custom_value=True)
                             
-                            # Voice cloning is only available on v3+ models. Hidden by
-                            # default and toggled on by on_backbone_change when a v3
-                            # model is selected.
-                            with gr.TabItem("🦜 Voice Cloning", id="custom_mode", visible=False) as tab_custom:
-                                # Initial clone-tab state must match the DEFAULT backbone:
-                                # on_backbone_change only fires when the dropdown changes, so a
-                                # v2-GPU default would otherwise keep v3's "no transcript" copy
-                                # and a hidden reference-text box (-> false "missing ref text").
+                            with gr.TabItem("🧬 Nhân bản giọng nói (Voice Clone)", id="custom_mode", visible=False) as tab_custom:
                                 _default_is_v2_gpu = (default_backbone == "VieNeu-TTS-v2 (GPU)")
                                 clone_info_md = gr.Markdown(
                                     "ℹ️ **Voice Cloning (VieNeu-TTS v2).** Tải lên audio mẫu 3–5 giây "
@@ -2368,15 +2336,13 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                                     "3–5 giây; v3 clone trực tiếp từ audio, không cần nhập nội dung."
                                 )
                                 with gr.Group(visible=True) as cloning_elements_group:
-                                    custom_audio = gr.Audio(label="Audio giọng mẫu (3-5 giây) (.wav)", type="filepath")
+                                    custom_audio = gr.Audio(label="Audio giọng mẫu (3-5 giây) (.wav, .mp3)", type="filepath")
                                     cloning_warning_msg = gr.Markdown(visible=False, elem_id="cloning-warning")
                                     denoise_checkbox = gr.Checkbox(
-                                        value=True, label="🔇 Denoise audio mẫu",
-                                        info="Khử nhiễu nền + chuẩn hoá audio mẫu trước khi clone (khuyến nghị). Audio dài hơn 8 giây sẽ được cắt ngắn.",
+                                        value=True, label="🔇 Khử nhiễu nền audio mẫu",
+                                        info="Tự động lọc tạp âm và chuẩn hoá audio mẫu trước khi clone giọng (khuyến nghị).",
                                     )
-                                    # v3 clones from audio only — the reference transcript box
-                                    # is hidden for v3 (toggled by on_backbone_change).
-                                    custom_text = gr.Textbox(label="Nội dung audio mẫu - vui lòng gõ đúng nội dung của audio mẫu - kể cả dấu câu vì model rất nhạy cảm với dấu câu (.,?!)", visible=_default_is_v2_gpu)
+                                    custom_text = gr.Textbox(label="Nội dung audio mẫu (Bắt buộc với v2)", visible=_default_is_v2_gpu)
                                     gr.Examples(
                                         examples=[
                                             [os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples", "audio_ref", "example.wav"), "Ví dụ 2. Tính trung bình của dãy số."],
@@ -2387,54 +2353,46 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                                         inputs=[custom_audio, custom_text],
                                         label="Ví dụ mẫu để thử nghiệm clone giọng"
                                     )
-                                    
-                                    gr.Markdown("""
-                                    **💡 Mẹo nhỏ:** Nếu kết quả Zero-shot Voice Cloning chưa như ý, bạn hãy cân nhắc **Finetune (LoRA)** để đạt chất lượng tốt nhất. 
-                                    Hướng dẫn chi tiết có tại file: `finetune/README.md` hoặc xem trên [GitHub](https://github.com/pnnbao97/VieNeu-TTS/tree/main/finetune).
-                                    """)
                         
                         generation_mode = gr.Radio(
                             ["Standard (Một lần)"],
                             value="Standard (Một lần)",
-                            label="Chế độ sinh"
+                            label="Chế độ sinh",
+                            visible=False
                         )
-                        btn_generate = gr.Button("🎵 Bắt đầu", variant="primary", scale=2, interactive=False)
+                        btn_generate = gr.Button("✨ Bắt đầu tạo giọng nói", variant="primary", scale=2, interactive=False, elem_classes="btn-primary-action")
 
                     # --- TAB 2: MULTI-SPEAKER CONVERSATION ---
-                    with gr.Tab("🎭 Hội thoại", id="conv_tab", visible=False) as conv_tab:
+                    with gr.Tab("🎭 Hội thoại Podcast", id="conv_tab", visible=False) as conv_tab:
                         conv_script_input = gr.Textbox(
                             label="Kịch bản hội thoại",
-                            placeholder="Phương: Chào mọi người, mình là Phương...",
+                            placeholder="Phương: Chào mọi người, mình là Phương...\nDũng: Chào cả nhà...",
                             lines=10,
                             elem_classes="script-box",
-                            value='Phương: Chào mọi người, mình là Phương. Hôm nay team có một announcement cực lớn về VieNeu-TTS Version 2. Đồng hành cùng mình là anh Dũng và Hùng. Hi guys!\n\nDũng: Yo, chào cả nhà. Mình sẽ đi thẳng vào technical side của bản nâng cấp này để mọi người có cái nhìn deep hơn nhé.\n\nHùng: Chào mọi người. Thật sự V2 là một huge milestone. Nó phá vỡ rào cản của những công cụ đọc văn bản khô khan, hướng tới một sự natural communication đúng nghĩa.\n\nPhương: Correct! Và bất ngờ nhất là: nãy giờ mọi người đang nghe bản demo được tạo ra 100% bằng VieNeu-TTS V2 đấy. Tụi mình đều là sản phẩm của AI hết. Amazing, right?\n\nDũng: Đỉnh thật sự! Tiện đây Hùng share thêm về cái nội công bên trong của model này đi.\n\nHùng: Chắc chắn rồi. Model được train trên 10000 hours audio chất lượng cao, nên nó hỗ trợ code-switching Anh Việt cực mượt, tự nhiên như podcast. Đặc biệt, dự án này hoàn toàn open-source để cộng đồng cùng phát triển.\n\nDũng: Về hiệu năng thì khỏi bàn. Khi test trên GPU quốc dân RTX 3060, tốc độ sinh audio nhanh gấp 10 lần realtime. Và đừng lo, nếu bạn không có card đồ hỏa xịn, tụi mình có sẵn bản CPU version để ai cũng có thể tiếp cận được.\n\nPhương: Tốc độ cực nhanh, hỗ trợ đa nền tảng và hoàn toàn miễn phí. Mọi người hãy cùng trải nghiệm nhé!'
+                            value='Phương: Chào mọi người, mình là Phương. Hôm nay team có một announcement cực lớn về EveryVideoTTS Studio. Đồng hành cùng mình là anh Dũng và Hùng. Hi guys!\n\nDũng: Yo, chào cả nhà. Mình sẽ đi thẳng vào technical side của bản nâng cấp này để mọi người có cái nhìn deep hơn nhé.\n\nHùng: Chào mọi người. Thật sự đây là một huge milestone. Nó phá vỡ rào cản của những công cụ đọc văn bản khô khan, hướng tới một sự natural communication đúng nghĩa.\n\nPhương: Correct! Và bất ngờ nhất là: nãy giờ mọi người đang nghe bản demo được tạo ra 100% bằng EveryVideoTTS đấy. Tụi mình đều là sản phẩm của AI hết. Amazing, right?\n\nDũng: Đỉnh thật sự! Tiện đây Hùng share thêm về cái nội công bên trong của model này đi.\n\nHùng: Chắc chắn rồi. Model hỗ trợ code-switching Anh Việt cực mượt, tự nhiên như podcast. Đặc biệt, dự án này hoàn toàn open-source để cộng đồng cùng phát triển.\n\nDũng: Về hiệu năng thì khỏi bàn. Khi test trên GPU RTX 5070, tốc độ sinh audio nhanh gấp 25 lần realtime. Tụi mình cũng có sẵn bản CPU version để ai cũng có thể tiếp cận được.\n\nPhương: Tốc độ cực nhanh, hỗ trợ đa nền tảng và hoàn toàn miễn phí. Mọi người hãy cùng trải nghiệm nhé!'
                         )
                         
                         with gr.Row():
                             btn_detect_speakers = gr.Button("🔍 Quét nhân vật", size="sm", variant="secondary")
-                            silence_slider = gr.Slider(minimum=0, maximum=3, value=0.1, step=0.1, label="⏱️ Khoảng lặng (giây)")
+                            silence_slider = gr.Slider(minimum=0, maximum=3, value=0.1, step=0.1, label="⏱️ Khoảng lặng giữa các lượt nói (giây)")
 
-                        gr.Markdown("### 🎭 Cấu hình giọng đọc")
-                        gr.Markdown("*Nhấn **Quét nhân vật** để tự động phát hiện và ánh xạ giọng đọc. Tải model trước để có danh sách giọng.*")
+                        gr.Markdown("### 🎭 Cấu hình giọng đọc cho từng nhân vật")
 
-                        # Pre-build MAX_SPEAKERS speaker slot rows
                         speaker_name_boxes = []
                         speaker_voice_dds  = []
                         speaker_slot_rows  = []
 
                         for _i in range(MAX_SPEAKERS):
-                            # Mặc định cho 3 nhân vật đầu tiên theo yêu cầu
                             _default_name = ""
                             _default_voice = None
                             _row_visible = False
-                            
                             if _i == 0:
                                 _default_name = "Phương"
-                                _default_voice = "Ly"
+                                _default_voice = "Doan"
                                 _row_visible = True
                             elif _i == 1:
                                 _default_name = "Dũng"
-                                _default_voice = "Binh"
+                                _default_voice = "Vinh"
                                 _row_visible = True
                             elif _i == 2:
                                 _default_name = "Hùng"
@@ -2464,10 +2422,17 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                             speaker_name_boxes.append(_name)
                             speaker_voice_dds.append(_dd)
                         
-                        btn_generate_conv = gr.Button("🎭 Bắt đầu hội thoại", variant="primary", interactive=False)
+                        btn_generate_conv = gr.Button("🎭 Bắt đầu tạo hội thoại", variant="primary", interactive=False, elem_classes="btn-primary-action")
 
                     # --- TAB 3: SRT DUBBING ---
-                    with gr.Tab("🎬 Lồng tiếng SRT", id="srt_tab") as srt_tab:
+                    with gr.Tab("🎬 Lồng tiếng Video & SRT", id="srt_tab") as srt_tab:
+                        gr.HTML("""
+                        <div class="srt-speed-banner">
+                            <div class="srt-speed-title">⚡ Công nghệ Studio-Grade Time-Domain WSOLA</div>
+                            <div class="srt-speed-desc">Tự động nhận diện độ dài phụ đề và khớp tốc độ mượt mà, triệt tiêu hoàn toàn tiếng rè kim loại, giữ nguyên chất lượng âm thanh 48 kHz.</div>
+                        </div>
+                        """)
+
                         with gr.Accordion("📄 Tải lên file phụ đề (.srt)", open=True):
                             srt_file_upload = gr.File(
                                 label="📄 Chọn file phụ đề (.srt hoặc .txt)",
@@ -2490,16 +2455,16 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
 
                         with gr.Tabs() as srt_voice_tabs:
                             with gr.TabItem("👤 Giọng mặc định (Preset)", id="srt_preset_mode") as srt_tab_preset:
-                                srt_voice_select = gr.Dropdown(choices=PRESET_VOICES_CACHE, value=None, label="🎤 Giọng đọc chính", allow_custom_value=True)
+                                srt_voice_select = gr.Dropdown(choices=PRESET_VOICES_CACHE, value=None, label="🎤 Giọng đọc chính (Default)", allow_custom_value=True)
 
-                            with gr.TabItem("🦜 Voice Cloning", id="srt_custom_mode") as srt_tab_custom:
+                            with gr.TabItem("🧬 Voice Cloning", id="srt_custom_mode") as srt_tab_custom:
                                 with gr.Group() as srt_cloning_elements_group:
-                                    srt_custom_audio = gr.Audio(label="Audio giọng mẫu (3-5 giây) (.wav)", type="filepath")
+                                    srt_custom_audio = gr.Audio(label="Audio giọng mẫu (3-5 giây) (.wav, .mp3)", type="filepath")
                                     srt_cloning_warning_msg = gr.Markdown(visible=False)
-                                    srt_denoise_cb = gr.Checkbox(value=True, label="🔇 Khử nhiễu audio mẫu", info="Khử nhiễu nền trước khi clone giọng.")
+                                    srt_denoise_cb = gr.Checkbox(value=True, label="🔇 Khử nhiễu nền audio mẫu", info="Tự động lọc tạp âm trước khi clone giọng.")
 
                         with gr.Accordion("👥 Phân vai nhân vật trong SRT (Tùy chọn)", open=False) as srt_speakers_accordion:
-                            gr.Markdown("*Nếu phụ đề có định dạng `Tên: Lời thoại` hoặc `[Tên] Lời thoại`, bạn có thể gán giọng riêng cho từng nhân vật ở đây:*")
+                            gr.Markdown("*Nếu phụ đề có định dạng `Tên: Lời thoại` hoặc `[Tên] Lời thoại`, bạn có thể gán giọng riêng cho từng nhân vật:*")
                             srt_speaker_name_boxes = []
                             srt_speaker_voice_dds  = []
                             srt_speaker_slot_rows  = []
@@ -2523,71 +2488,70 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                         with gr.Row():
                             srt_speed_mode = gr.Dropdown(
                                 choices=[
-                                    ("🚀 Tự động tăng tốc khi câu đọc bị tràn (Khuyên dùng)", "auto_speed_up"),
-                                    ("🎯 Ép khớp chính xác 100% thời lượng", "fit_exact"),
-                                    ("⏹️ Giữ nguyên tốc độ gốc (1.0x)", "none"),
+                                    ("⚡ Tự động tăng tốc khi câu đọc bị tràn (Khuyên dùng)", "auto_speed_up"),
+                                    ("⏱️ Khớp chính xác thời lượng từng câu (Fit Exact)", "fit_exact"),
+                                    ("⛔ Giữ nguyên tốc độ giọng gốc", "none")
                                 ],
                                 value="auto_speed_up",
-                                label="⚡ Khớp tốc độ tự động (Auto Speed Matching)",
-                                info="Tự động co/giãn tốc độ để khớp hoàn hảo với thời lượng phụ đề mà không đổi tông giọng."
+                                label="🚀 Điều chỉnh tốc độ giọng theo phụ đề (Speed Matching)",
+                                info="Tự động điều chỉnh tốc độ đọc của AI để câu thoại vừa khít với mốc thời gian phụ đề."
                             )
                             srt_max_speed = gr.Slider(
-                                minimum=1.1,
+                                minimum=1.0,
                                 maximum=3.0,
                                 value=2.0,
                                 step=0.1,
-                                label="🏎️ Tốc độ tối đa cho phép",
-                                info="Giới hạn mức tăng tốc tối đa (tránh nói quá nhanh gây khó nghe)."
+                                label="⚡ Giới hạn tốc độ tối đa",
+                                info="Giới hạn tốc độ tăng tối đa (VD: 2.0x = không đọc nhanh quá 2 lần)."
                             )
 
-                        btn_generate_srt = gr.Button("🎬 Bắt đầu lồng tiếng SRT", variant="primary", interactive=False)
+                        btn_generate_srt = gr.Button("🎬 Bắt đầu lồng tiếng SRT", variant="primary", scale=2, interactive=False, elem_classes="btn-primary-action")
 
-                # Global Generation Settings
-                with gr.Row():
-                    use_batch = gr.Checkbox(
-                        value=True, 
-                        label="⚡ Batch Processing",
-                        info="Xử lý nhiều đoạn cùng lúc (chỉ áp dụng khi sử dụng GPU và đã cài đặt LMDeploy)"
-                    )
-                    max_batch_size_run = gr.Slider(
-                        minimum=1,
-                        maximum=32,
-                        value=default_batch_size,
-                        step=1,
-                        label="📊 Batch Size (Generation)",
-                        info="Số lượng đoạn văn bản xử lý cùng lúc. Giá trị cao = nhanh hơn nhưng tốn VRAM hơn. Giảm xuống nếu gặp lỗi Out of Memory."
-                    )
-                
-                with gr.Accordion("⚙️ Cài đặt nâng cao (Generation)", open=False):
-                    with gr.Row():
-                        temperature_slider = gr.Slider(
-                            minimum=0.1, maximum=1.5, value=default_temp, step=0.1,
-                            label="🌡️ Temperature", 
-                            info="Độ sáng tạo. Cao = đa dạng cảm xúc hơn nhưng dễ lỗi. Thấp = ổn định hơn."
-                        )
-                        max_chars_chunk_slider = gr.Slider(
-                            minimum=128, maximum=512,
-                            value=256, step=32,
-                            label="📝 Max Chars per Chunk",
-                            info="Độ dài tối đa mỗi đoạn xử lý (mặc định: 256)."
-                        )
-                
+                    # --- TAB 4: ADVANCED SETTINGS ---
+                    with gr.Tab("⚙️ Cài đặt Studio", id="settings_tab") as settings_tab:
+                        with gr.Row():
+                            use_batch = gr.Checkbox(
+                                value=True, 
+                                label="⚡ GPU Parallel Batching",
+                                info="Xử lý nhiều đoạn song song cùng lúc trên GPU."
+                            )
+                            max_batch_size_run = gr.Slider(
+                                minimum=1,
+                                maximum=64,
+                                value=default_batch_size,
+                                step=1,
+                                label="📊 Batch Size (GPU Parallel Processing)",
+                                info="Số lượng câu xử lý song song trên GPU. RTX 5070 khuyến nghị: 32 - 64 để đạt tốc độ tối đa."
+                            )
+                        with gr.Row():
+                            temperature_slider = gr.Slider(
+                                minimum=0.1, maximum=1.5, value=default_temp, step=0.1,
+                                label="🌡️ Temperature (Độ sáng tạo / Cảm xúc)", 
+                                info="Thấp = đều đặn, ổn định. Cao = đa dạng cảm xúc ngữ điệu."
+                            )
+                            max_chars_chunk_slider = gr.Slider(
+                                minimum=128, maximum=512,
+                                value=256, step=32,
+                                label="📝 Max Chars per Chunk",
+                                info="Độ dài tối đa mỗi phân đoạn xử lý (mặc định: 256)."
+                            )
+
                 # State to track current mode
                 current_mode_state = gr.State("preset_mode")
                 
                 with gr.Row():
-                    btn_stop = gr.Button("⏹️ Dừng", variant="stop", scale=1, interactive=False)
+                    btn_stop = gr.Button("⏹️ Dừng xử lý", variant="stop", scale=1, interactive=False, elem_classes="btn-stop-action")
             
             # --- OUTPUT ---
             with gr.Column(scale=2):
                 audio_output = gr.Audio(
-                    label="Kết quả",
+                    label="🎧 Trình phát Âm thanh (Audio Player)",
                     type="filepath",
                     autoplay=True
                 )
                 with gr.Group():
                     status_output = gr.Textbox(
-                        label="Trạng thái", 
+                        label="⚡ Trạng thái xử lý", 
                         elem_classes="status-box",
                         lines=2,
                         max_lines=10,
@@ -2595,7 +2559,7 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                     )
                 with gr.Group():
                     estimate_output = gr.Textbox(
-                        label="Ước tính thời gian",
+                        label="⏱️ Tiến độ & Thời gian",
                         elem_classes="estimate-box",
                         lines=2,
                         max_lines=4,
@@ -2605,9 +2569,9 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                     "📥 Tải xuống file Audio",
                     variant="primary",
                     visible=False,
-                    elem_classes="download-btn"
+                    elem_classes="btn-primary-action"
                 )
-                gr.Markdown("<div style='text-align: center; color: #64748b; font-size: 0.8rem;'>🔒 Audio được đóng dấu bản quyền ẩn (Watermarker) để bảo mật và định danh AI.</div>")
+                gr.Markdown("<div style='text-align: center; color: #64748b; font-size: 0.8rem; margin-top: 8px;'>🔒 Audio được đóng dấu bản quyền ẩn (Watermarker) để bảo mật và định danh AI.</div>")
         
         codec_select.change(
             on_codec_change, 
