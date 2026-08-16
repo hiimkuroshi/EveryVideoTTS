@@ -2172,7 +2172,7 @@ EXAMPLES_LIST = [
     ["Hà Nội những ngày vào thu mang một vẻ đẹp trầm mặc và cổ kính đến lạ thường.", "Bình (nam miền Bắc)"],
 ]
 
-with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo:
+with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as demo:
     # Session ID for cancellation tracking
     session_id_state = gr.State("")
 
@@ -2180,27 +2180,21 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
         gr.HTML("""
 <div class="header-box">
     <h1 class="header-title">
-        <span class="header-icon">🦜</span>
-        <span class="gradient-text">VieNeu-TTS Studio</span>
+        <span class="header-icon">🎬</span>
+        <span class="gradient-text">EveryVideoTTS Studio</span>
     </h1>
     <div class="model-card-content">
         <div class="model-card-item">
-            <strong>Models:</strong>
-            <a href="https://huggingface.co/pnnbao-ump/VieNeu-TTS" target="_blank" class="model-card-link">VieNeu-TTS</a>
-            <span>•</span>
-            <a href="https://huggingface.co/pnnbao-ump/VieNeu-TTS-v2" target="_blank" class="model-card-link">VieNeu-TTS-v2</a>
+            <strong>Tác giả:</strong>
+            <a href="https://github.com/hiimkuroshi" target="_blank" class="model-card-link">Tyr</a>
         </div>
         <div class="model-card-item">
             <strong>Repository:</strong>
-            <a href="https://github.com/pnnbao97/VieNeu-TTS" target="_blank" class="model-card-link">GitHub</a>
+            <a href="https://github.com/hiimkuroshi/VieNeu-TTS-Studio" target="_blank" class="model-card-link">VieNeu-TTS-Studio</a>
         </div>
         <div class="model-card-item">
-            <strong>Tác giả:</strong>
-            <a href="https://www.facebook.com/pnnbao97" target="_blank" class="model-card-link">Phạm Nguyễn Ngọc Bảo</a>
-        </div>
-        <div class="model-card-item">
-            <strong>Discord:</strong>
-            <a href="https://discord.gg/yJt8kzjzWZ" target="_blank" class="model-card-link">Tham gia cộng đồng</a>
+            <strong>Features:</strong>
+            <span class="model-card-link">TTS · Voice Clone · Lồng tiếng SRT</span>
         </div>
     </div>
 </div>

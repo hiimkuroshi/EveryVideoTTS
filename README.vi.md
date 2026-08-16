@@ -1,22 +1,20 @@
-# 🦜 VieNeu-TTS
+# 🎬 EveryVideoTTS
 
 [![Awesome](https://img.shields.io/badge/Awesome-NLP-green?logo=github)](https://github.com/keon/awesome-nlp)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord&logoColor=white)](https://discord.gg/yJt8kzjzWZ)
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1b9PO-lcGZX9pEkEwQmu8MfhSnjxKrALW?usp=sharing)
-[![Hugging Face VieNeu-TTS-v2](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-v2-blue)](https://huggingface.co/pnnbao-ump/VieNeu-TTS-v2)
-[![Hugging Face VieNeu-TTS](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-v1-orange)](https://huggingface.co/pnnbao-ump/VieNeu-TTS)
+[![GitHub](https://img.shields.io/badge/GitHub-VieNeu--TTS--Studio-181717?logo=github)](https://github.com/hiimkuroshi/VieNeu-TTS-Studio)
 
 <img width="1087" height="710" alt="image" src="https://github.com/user-attachments/assets/5534b5db-f30b-4d27-8a35-80f1cf6e5d4d" />
 
-**VieNeu-TTS-v2** là thế hệ tiếp theo của mô hình chuyển đổi văn bản thành giọng nói (TTS) tiếng Việt chạy trên thiết bị, hỗ trợ **10.000+ giờ dữ liệu** huấn luyện song ngữ, **clone giọng nói tức thì**, và chế độ **Podcast/Hội thoại** chuyên dụng.
+**EveryVideoTTS** là Studio chuyển đổi văn bản thành giọng nói (TTS) tiếng Việt AI chất lượng cao, Clone giọng nói tức thì và Lồng tiếng Video tự động từ phụ đề SRT.
 
-> [!IMPORTANT]
-> **🚀 VieNeu-TTS-v2 đã ra mắt!**
-> Kiến trúc song ngữ chất lượng cao (high-fidelity) hiện đã sẵn sàng với:
-> - **10.000+ Giờ dữ liệu:** Độ tự nhiên vượt trội trong cả tiếng Anh và tiếng Việt.
-> - **Chế độ Podcast & Đối thoại:** Hỗ trợ đa người nói với các sắc thái biểu cảm.
-> - **Zero-shot Cloning:** Clone bất kỳ giọng nói nào chỉ trong 3-5 giây trên tất cả các biến thể v2.
+> 📌 **Dựa trên repo gốc:** [VieNeu-TTS-Studio](https://github.com/hiimkuroshi/VieNeu-TTS-Studio)
+
+> [!NOTE]
+> **🆕 EveryVideoTTS v3 Turbo:**
+> - **Chất lượng âm thanh 48 kHz** đạt chuẩn phòng thu.
+> - **Tự động lồng tiếng SRT & Thuật toán WSOLA chống rè**: Đồng bộ thời gian chính xác, tự động khớp tốc độ mà không làm méo hay vỡ giọng.
+> - **Bộ giọng dựng sẵn phong phú**: Bình, Tuyên, Vĩnh, Đoan, Ly, Ngọc, Review 1, Review 2...
+> - **Xử lý siêu tốc trên GPU**: Batched Engine x32 xử lý song song toàn bộ video trong vài giây.
 
 ## ✨ Tính năng nổi bật
 - **Huấn luyện 10.000+ giờ**: Được huấn luyện trên tập dữ liệu Anh-Việt khổng lồ cho ngữ điệu giống hệt con người.
@@ -54,8 +52,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 1. **Clone Repo:**
    ```bash
-   git clone https://github.com/pnnbao97/VieNeu-TTS.git
-   cd VieNeu-TTS
+   git clone https://github.com/hiimkuroshi/VieNeu-TTS-Studio.git
+   cd VieNeu-TTS-Studio
    ```
 
 2. **Cài đặt các phụ thuộc:**
@@ -365,21 +363,20 @@ docker run --gpus all \
 
 ## 🤝 6. Hỗ trợ & Liên hệ <a name="support"></a>
 
-- **Hugging Face:** [pnnbao-ump](https://huggingface.co/pnnbao-ump)
-- **Discord:** [Tham gia cộng đồng](https://discord.gg/yJt8kzjzWZ)
-- **Facebook:** [Phạm Nguyễn Ngọc Bảo](https://www.facebook.com/pnnbao97)
+- **Tác giả:** **Tyr**
+- **Repository:** [VieNeu-TTS-Studio](https://github.com/hiimkuroshi/VieNeu-TTS-Studio)
+- **GitHub Profile:** [hiimkuroshi](https://github.com/hiimkuroshi)
 - **Giấy phép:** Apache 2.0 (Sử dụng tự do).
 
 ---
 ## 📑 7. Trích dẫn <a name="citation"></a>
 
 ```bibtex
-@misc{vieneutts2026,
-  title        = {VieNeu-TTS-v2: Advanced Vietnamese Text-to-Speech with Podcast and Code-Switching Support},
-  author       = {Pham Nguyen Ngoc Bao},
+@misc{everyvideotts2026,
+  title        = {EveryVideoTTS: Advanced Vietnamese Text-to-Speech & Video SRT Dubbing Studio},
+  author       = {Tyr},
   year         = {2026},
-  publisher    = {Hugging Face},
-  howpublished = {\url{https://huggingface.co/pnnbao-ump/VieNeu-TTS}}
+  howpublished = {\url{https://github.com/hiimkuroshi/VieNeu-TTS-Studio}}
 }
 ```
 

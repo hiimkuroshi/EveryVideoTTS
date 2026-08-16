@@ -2,11 +2,10 @@
   "meta": {
     "spec": "vieneu.voice.presets",
     "spec_version": "1.0",
-    "engine": "VieNeu-TTS",
-    "author": "Phạm Nguyễn Ngọc Bảo (pnnbao-ump)",
+    "engine": "EveryVideoTTS",
+    "author": "Tyr",
     "license": "CC BY-NC 4.0",
-    "homepage": "https://github.com/pnnbao97/VieNeu-TTS",
-    "notice": "Model and voices are for non-commercial use only. Mention pnnbao-ump when using."
+    "homepage": "https://github.com/hiimkuroshi/VieNeu-TTS-Studio"
   },
   "default_voice": "Binh",
   "presets": {

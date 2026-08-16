@@ -60,7 +60,7 @@ keywords = [
     "on-device"
 ]
 authors = [
-    { name = "Phạm Nguyễn Ngọc Bảo", email = "pnnbao@gmail.com" }
+    { name = "Tyr" }
 ]
 requires-python = ">=3.10"
 # Minimal, TORCH-FREE core. `pip install vieneu` runs VieNeu-TTS v3 Turbo on CPU
@@ -82,11 +82,11 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/pnnbao97/VieNeu-TTS"
-"Repository" = "https://github.com/pnnbao97/VieNeu-TTS"
-"Bug Tracker" = "https://github.com/pnnbao97/VieNeu-TTS/issues"
-"Documentation" = "https://github.com/pnnbao97/VieNeu-TTS/blob/main/README.md"
-"Source Code" = "https://github.com/pnnbao97/VieNeu-TTS"
+"Homepage" = "https://github.com/hiimkuroshi/VieNeu-TTS-Studio"
+"Repository" = "https://github.com/hiimkuroshi/VieNeu-TTS-Studio"
+"Bug Tracker" = "https://github.com/hiimkuroshi/VieNeu-TTS-Studio/issues"
+"Documentation" = "https://github.com/hiimkuroshi/VieNeu-TTS-Studio/blob/main/README.md"
+"Source Code" = "https://github.com/hiimkuroshi/VieNeu-TTS-Studio"
 "Changelog" = "https://github.com/pnnbao97/VieNeu-TTS/releases"
 
 [project.optional-dependencies]
