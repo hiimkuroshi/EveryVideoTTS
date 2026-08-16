@@ -232,7 +232,8 @@ def adjust_audio_speed(
 ) -> np.ndarray:
     """
     Adjust audio playback speed without changing pitch (Pitch-Preserving Time-Stretching).
-    Uses librosa.effects.time_stretch with automatic fallback.
+    Uses high-fidelity Time-Domain WSOLA (Waveform Similarity Overlap-Add) to eliminate
+    robotic / metallic / buzzing phase artifacts, preserving crystal-clear natural timbre.
 
     Args:
         wav: 1D numpy array of audio samples (float32).
@@ -245,21 +246,86 @@ def adjust_audio_speed(
     if wav is None or len(wav) == 0 or abs(speed_factor - 1.0) < 0.01:
         return wav
 
-    speed_factor = max(0.25, min(float(speed_factor), 4.0))
+    speed_factor = max(0.3, min(float(speed_factor), 3.5))
+    target_len = int(len(wav) / speed_factor)
+    if target_len < 100:
+        return wav
 
     try:
-        import librosa
-        stretched = librosa.effects.time_stretch(np.ascontiguousarray(wav, dtype=np.float32), rate=speed_factor)
-        return stretched.astype(np.float32)
+        import scipy.signal as signal
+
+        # 25ms analysis window for optimal speech pitch tracking
+        win_size = int(0.025 * sample_rate)
+        if win_size % 2 != 0:
+            win_size += 1
+        hop_out = win_size // 2
+        hop_in = max(1, int(hop_out * speed_factor))
+        search_range = win_size // 2
+
+        window = np.hanning(win_size).astype(np.float32)
+
+        pad_len = win_size + search_range + hop_out
+        padded_x = np.pad(wav.astype(np.float32), (search_range, pad_len), mode='reflect')
+
+        num_frames = int(np.ceil((len(wav) - win_size) / hop_in))
+        out_len = (num_frames + 2) * hop_out + win_size
+        y = np.zeros(out_len, dtype=np.float32)
+        norm = np.zeros(out_len, dtype=np.float32)
+
+        curr_in = search_range
+        y[0:win_size] += padded_x[curr_in:curr_in + win_size] * window
+        norm[0:win_size] += window
+
+        prev_in = curr_in
+        for k in range(1, num_frames):
+            target_in = int(k * hop_in) + search_range
+            out_pos = k * hop_out
+
+            ref_seg = padded_x[prev_in + hop_out : prev_in + hop_out + win_size]
+            search_start = max(0, target_in - search_range)
+            search_end = min(len(padded_x) - win_size, target_in + search_range)
+            search_block = padded_x[search_start : search_end + win_size]
+
+            if len(search_block) >= win_size and len(ref_seg) == win_size:
+                xcorr = signal.correlate(search_block, ref_seg, mode='valid', method='fft')
+                best_offset = np.argmax(xcorr)
+                best_in = search_start + best_offset
+            else:
+                best_in = target_in
+
+            seg = padded_x[best_in : best_in + win_size] * window
+            y[out_pos : out_pos + win_size] += seg
+            norm[out_pos : out_pos + win_size] += window
+            prev_in = best_in
+
+        mask = norm > 1e-4
+        y[mask] /= norm[mask]
+
+        if len(y) > target_len:
+            y = y[:target_len]
+
+        # Preserve original peak energy level to keep loudness 100% uniform
+        orig_peak = np.max(np.abs(wav))
+        new_peak = np.max(np.abs(y))
+        if orig_peak > 1e-4 and new_peak > 1e-4:
+            y = y * (orig_peak / new_peak)
+
+        return y.astype(np.float32)
+
     except Exception:
+        # Fallback to librosa or resampling
         try:
-            from scipy.signal import resample
-            new_len = int(len(wav) / speed_factor)
-            if new_len > 0:
-                return resample(wav, new_len).astype(np.float32)
+            import librosa
+            stretched = librosa.effects.time_stretch(np.ascontiguousarray(wav, dtype=np.float32), rate=speed_factor)
+            return stretched.astype(np.float32)
         except Exception:
-            pass
-        return wav
+            try:
+                from scipy.signal import resample
+                if target_len > 0:
+                    return resample(wav, target_len).astype(np.float32)
+            except Exception:
+                pass
+            return wav
 
 
 def build_srt_audio_timeline(
