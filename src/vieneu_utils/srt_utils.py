@@ -225,11 +225,51 @@ def extract_srt_speakers(items: List[SubtitleItem]) -> List[str]:
     return speakers
 
 
+def adjust_audio_speed(
+    wav: np.ndarray,
+    speed_factor: float,
+    sample_rate: int = 48000
+) -> np.ndarray:
+    """
+    Adjust audio playback speed without changing pitch (Pitch-Preserving Time-Stretching).
+    Uses librosa.effects.time_stretch with automatic fallback.
+
+    Args:
+        wav: 1D numpy array of audio samples (float32).
+        speed_factor: Playback rate factor (> 1.0 speeds up, < 1.0 slows down).
+        sample_rate: Audio sampling rate (default 48000 Hz).
+
+    Returns:
+        np.ndarray: Speed-adjusted audio waveform.
+    """
+    if wav is None or len(wav) == 0 or abs(speed_factor - 1.0) < 0.01:
+        return wav
+
+    speed_factor = max(0.25, min(float(speed_factor), 4.0))
+
+    try:
+        import librosa
+        stretched = librosa.effects.time_stretch(np.ascontiguousarray(wav, dtype=np.float32), rate=speed_factor)
+        return stretched.astype(np.float32)
+    except Exception:
+        try:
+            from scipy.signal import resample
+            new_len = int(len(wav) / speed_factor)
+            if new_len > 0:
+                return resample(wav, new_len).astype(np.float32)
+        except Exception:
+            pass
+        return wav
+
+
 def build_srt_audio_timeline(
     items: List[SubtitleItem],
     infer_chunk_fn: Callable[[SubtitleItem], np.ndarray],
     sample_rate: int = 48000,
     align_mode: str = "sync",
+    speed_mode: str = "auto_speed_up",
+    max_speed_factor: float = 2.0,
+    min_speed_factor: float = 0.8,
     speed_threshold: float = 1.25,
     lead_in_silence_s: float = 0.0,
     lead_in_s: Optional[float] = None,
@@ -243,6 +283,12 @@ def build_srt_audio_timeline(
         infer_chunk_fn: Function `(SubtitleItem) -> np.ndarray` that returns the generated waveform.
         sample_rate: Output audio sample rate (default 48000 Hz).
         align_mode: "sync" (Strict time-alignment with silence padding) or "sequential".
+        speed_mode: Speed adjustment mode:
+            - "auto_speed_up": Automatically speed up if spoken audio exceeds subtitle duration (Default).
+            - "fit_exact": Stretch or compress to match exact subtitle slot duration.
+            - "none": Keep original speed (1.0x).
+        max_speed_factor: Maximum speed-up ratio allowed (default 2.0x).
+        min_speed_factor: Minimum speed-down ratio allowed (default 0.8x).
         speed_threshold: Max factor before warning that spoken text is longer than subtitle slot.
         lead_in_silence_s: Initial silence offset before the first subtitle (seconds).
         lead_in_s: Alias for `lead_in_silence_s`.
@@ -301,6 +347,21 @@ def build_srt_audio_timeline(
         if wav is None or len(wav) == 0:
             wav = np.array([], dtype=np.float32)
 
+        original_wav_len = len(wav)
+        raw_duration_ms = int((original_wav_len / sample_rate) * 1000) if sample_rate > 0 else 0
+
+        # Auto Speed Matching / Time-Stretching
+        applied_speed = 1.0
+        if raw_duration_ms > 0 and slot_duration_ms > 0 and speed_mode != "none":
+            needed_speed = raw_duration_ms / slot_duration_ms
+            if speed_mode == "auto_speed_up" and raw_duration_ms > slot_duration_ms:
+                applied_speed = min(needed_speed, max_speed_factor)
+            elif speed_mode == "fit_exact":
+                applied_speed = max(min_speed_factor, min(needed_speed, max_speed_factor))
+
+            if abs(applied_speed - 1.0) > 0.02:
+                wav = adjust_audio_speed(wav, applied_speed, sample_rate)
+
         wav_len = len(wav)
         actual_duration_ms = int((wav_len / sample_rate) * 1000) if sample_rate > 0 else 0
 
@@ -320,6 +381,8 @@ def build_srt_audio_timeline(
             "target_duration_s": slot_duration_ms / 1000.0,
             "actual_start_s": actual_start_ms / 1000.0,
             "actual_duration_s": actual_duration_ms / 1000.0,
+            "raw_duration_s": raw_duration_ms / 1000.0,
+            "applied_speed": round(applied_speed, 2),
             "over_slot": over_slot,
             "duration_ratio": round(ratio, 2),
         }

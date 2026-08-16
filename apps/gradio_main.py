@@ -1872,12 +1872,14 @@ def synthesize_srt_speech(
     srt_mode_state,
     align_mode_str,
     lead_in_s,
+    srt_speed_mode,
+    srt_max_speed,
     temperature,
     max_chars_chunk,
     session_id,
     *srt_speaker_args
 ):
-    """Synthesize speech from SRT subtitles with timeline alignment."""
+    """Synthesize speech from SRT subtitles with timeline alignment and auto speed matching."""
     global tts, model_loaded
     _STOP_EVENT.clear()
 
@@ -1899,7 +1901,7 @@ def synthesize_srt_speech(
         yield None, "⚠️ Vui lòng tải lên file SRT hoặc nhập nội dung phụ đề!"
         return
 
-    from vieneu_utils.srt_utils import parse_srt
+    from vieneu_utils.srt_utils import parse_srt, adjust_audio_speed
     items = parse_srt(content)
     if not items:
         yield None, "⚠️ Không tìm thấy câu phụ đề hợp lệ nào trong nội dung SRT!"
@@ -1976,13 +1978,35 @@ def synthesize_srt_speech(
             if wav is None or len(wav) == 0:
                 wav = np.array([], dtype=np.float32)
 
+            original_wav_len = len(wav)
+            raw_duration_ms = int((original_wav_len / sr) * 1000) if sr > 0 else 0
+
+            # Auto Speed Matching / Time-Stretching
+            applied_speed = 1.0
+            if raw_duration_ms > 0 and slot_duration_ms > 0 and srt_speed_mode != "none":
+                needed_speed = raw_duration_ms / slot_duration_ms
+                max_speed_limit = float(srt_max_speed) if srt_max_speed else 2.0
+                if srt_speed_mode == "auto_speed_up" and raw_duration_ms > slot_duration_ms:
+                    applied_speed = min(needed_speed, max_speed_limit)
+                elif srt_speed_mode == "fit_exact":
+                    applied_speed = max(0.8, min(needed_speed, max_speed_limit))
+
+                if abs(applied_speed - 1.0) > 0.02:
+                    wav = adjust_audio_speed(wav, applied_speed, sr)
+
             wav_len = len(wav)
             actual_duration_ms = int((wav_len / sr) * 1000) if sr > 0 else 0
             timeline_chunks.append(wav)
             current_ms += actual_duration_ms
 
             ratio = (actual_duration_ms / slot_duration_ms) if slot_duration_ms > 0 else 1.0
-            subtitles_info.append({"index": item.index, "ratio": ratio})
+            subtitles_info.append({
+                "index": item.index,
+                "ratio": ratio,
+                "applied_speed": applied_speed,
+                "raw_duration_ms": raw_duration_ms,
+                "actual_duration_ms": actual_duration_ms,
+            })
 
         if align_mode == "sync" and items:
             last_end_ms = items[-1].end_ms
@@ -2005,9 +2029,11 @@ def synthesize_srt_speech(
             sf.write(tmp.name, final_wav, sr)
             elapsed = time.time() - start_t
             total_audio_s = len(final_wav) / sr
+            speed_up_count = sum(1 for x in subtitles_info if x.get("applied_speed", 1.0) > 1.02)
+            speed_info_str = f" (⚡ Đã tự động tăng tốc {speed_up_count} câu để khớp timeline)" if speed_up_count > 0 else ""
             over_count = sum(1 for x in subtitles_info if x["ratio"] > 1.25)
-            warning_sub = f" (⚠️ Có {over_count} câu đọc dài hơn khung thời gian phụ đề)" if over_count > 0 else ""
-            yield tmp.name, f"✅ Hoàn tất lồng tiếng SRT! ({len(items)} câu, Audio: {total_audio_s:.1f}s, Xử lý trong {elapsed:.1f}s){warning_sub}"
+            warning_sub = f" (⚠️ Có {over_count} câu vẫn dài hơn khung phụ đề)" if (over_count > 0 and speed_up_count == 0) else ""
+            yield tmp.name, f"✅ Hoàn tất lồng tiếng SRT! ({len(items)} câu, Audio: {total_audio_s:.1f}s, Xử lý trong {elapsed:.1f}s){speed_info_str}{warning_sub}"
 
     except Exception as e:
         import traceback
@@ -2381,6 +2407,26 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
                             )
                             srt_lead_in = gr.Slider(minimum=0.0, maximum=5.0, value=0.0, step=0.1, label="⏱️ Độ trễ đầu (Lead-in giây)")
 
+                        with gr.Row():
+                            srt_speed_mode = gr.Dropdown(
+                                choices=[
+                                    ("🚀 Tự động tăng tốc khi câu đọc bị tràn (Khuyên dùng)", "auto_speed_up"),
+                                    ("🎯 Ép khớp chính xác 100% thời lượng", "fit_exact"),
+                                    ("⏹️ Giữ nguyên tốc độ gốc (1.0x)", "none"),
+                                ],
+                                value="auto_speed_up",
+                                label="⚡ Khớp tốc độ tự động (Auto Speed Matching)",
+                                info="Tự động co/giãn tốc độ để khớp hoàn hảo với thời lượng phụ đề mà không đổi tông giọng."
+                            )
+                            srt_max_speed = gr.Slider(
+                                minimum=1.1,
+                                maximum=3.0,
+                                value=2.0,
+                                step=0.1,
+                                label="🏎️ Tốc độ tối đa cho phép",
+                                info="Giới hạn mức tăng tốc tối đa (tránh nói quá nhanh gây khó nghe)."
+                            )
+
                         btn_generate_srt = gr.Button("🎬 Bắt đầu lồng tiếng SRT", variant="primary", interactive=False)
 
                 # Global Generation Settings
@@ -2629,6 +2675,8 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
                 srt_mode_state,
                 srt_align_mode,
                 srt_lead_in,
+                srt_speed_mode,
+                srt_max_speed,
                 temperature_slider,
                 max_chars_chunk_slider,
                 session_id_state,

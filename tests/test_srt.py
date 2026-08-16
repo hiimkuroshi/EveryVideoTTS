@@ -192,10 +192,50 @@ Dũng: Tạm biệt
         wav, stats = tts.infer_srt(
             srt_input=srt_text,
             default_voice="Ly",
-            speaker_map={"phương": "Ly", "dũng": "Binh"}
+            speaker_map={"phương": "Ly", "dũng": "Binh"},
+            speed_mode="auto_speed_up"
         )
         self.assertEqual(stats["total_items"], 2)
         self.assertTrue(len(wav) > 0)
+
+    def test_adjust_audio_speed(self):
+        from vieneu_utils.srt_utils import adjust_audio_speed
+        sr = 24000
+        wav = np.random.randn(sr * 2).astype(np.float32)  # 2.0 seconds
+
+        # 2.0x speed -> 1.0 second
+        sped_up = adjust_audio_speed(wav, speed_factor=2.0, sample_rate=sr)
+        self.assertAlmostEqual(len(sped_up), sr, delta=sr * 0.1)
+
+        # 0.5x speed -> 4.0 seconds
+        slowed_down = adjust_audio_speed(wav, speed_factor=0.5, sample_rate=sr)
+        self.assertAlmostEqual(len(slowed_down), sr * 4, delta=sr * 0.2)
+
+    def test_build_srt_audio_timeline_auto_speed(self):
+        sr = 16000
+        # Subtitle slot is only 1.0s (1000ms to 2000ms)
+        items = [
+            SubtitleItem(index=1, start_ms=1000, end_ms=2000, text="Một câu nói rất dài"),
+        ]
+
+        # Model generates 2.0s of audio (too long for 1.0s slot)
+        def mock_long_infer(item: SubtitleItem) -> np.ndarray:
+            return np.ones(sr * 2, dtype=np.float32)
+
+        # In auto_speed_up mode, it should be compressed to ~1.0s
+        audio, stats = build_srt_audio_timeline(
+            items=items,
+            infer_chunk_fn=mock_long_infer,
+            sample_rate=sr,
+            align_mode="sync",
+            speed_mode="auto_speed_up",
+            max_speed_factor=2.5,
+        )
+
+        sub_info = stats["subtitles_info"][0]
+        self.assertGreater(sub_info["applied_speed"], 1.5)
+        # Total audio duration should be around 2.0s (1.0s lead-in + 1.0s audio)
+        self.assertAlmostEqual(len(audio) / sr, 2.0, delta=0.2)
 
 
 if __name__ == "__main__":

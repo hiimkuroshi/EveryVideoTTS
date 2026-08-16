@@ -464,6 +464,9 @@ class BaseVieneuTTS(ABC):
         ref_audio: Optional[Union[str, Path]] = None,
         speaker_map: Optional[Dict[str, Union[str, dict]]] = None,
         align_mode: str = "sync",
+        speed_mode: str = "auto_speed_up",
+        max_speed_factor: float = 2.0,
+        min_speed_factor: float = 0.8,
         speed_threshold: float = 1.25,
         lead_in_silence_s: float = 0.0,
         apply_watermark: bool = True,
@@ -479,6 +482,9 @@ class BaseVieneuTTS(ABC):
             ref_audio: Audio file to clone voice from (if not using voice preset).
             speaker_map: Optional mapping of speaker names in subtitle to voice presets.
             align_mode: "sync" (Strict time-alignment with silence padding) or "sequential".
+            speed_mode: Speed adjustment mode: "auto_speed_up" (Default), "fit_exact", "none".
+            max_speed_factor: Maximum speed-up ratio allowed (default 2.0x).
+            min_speed_factor: Minimum speed-down ratio allowed (default 0.8x).
             speed_threshold: Threshold ratio before flagging that spoken audio exceeds subtitle slot.
             lead_in_silence_s: Initial silence offset before first subtitle (seconds).
             apply_watermark: Apply watermark to the final waveform.
@@ -520,6 +526,9 @@ class BaseVieneuTTS(ABC):
             infer_chunk_fn=_infer_item,
             sample_rate=self.sample_rate,
             align_mode=align_mode,
+            speed_mode=speed_mode,
+            max_speed_factor=max_speed_factor,
+            min_speed_factor=min_speed_factor,
             speed_threshold=speed_threshold,
             lead_in_silence_s=lead_in_silence_s,
             progress_callback=progress_callback,

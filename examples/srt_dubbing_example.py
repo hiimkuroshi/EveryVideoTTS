@@ -37,21 +37,24 @@ def main():
         "dũng": "Binh",
     }
 
-    print("\n🎬 Bắt đầu lồng tiếng phụ đề SRT (Strict Timeline Sync)...")
-    audio, info_list = tts.infer_srt(
+    print("\n🎬 Bắt đầu lồng tiếng phụ đề SRT (Strict Timeline Sync + Auto Speed Matching)...")
+    audio, stats = tts.infer_srt(
         srt_input=srt_file_path,
         default_voice="Ly",
         speaker_map=speaker_mapping,
         align_mode="sync",
-        progress_callback=lambda idx, total, item: print(
+        speed_mode="auto_speed_up",  # Tự động tăng tốc câu dài để khớp timeline
+        max_speed_factor=2.0,        # Giới hạn tăng tốc tối đa 2.0x
+        progress_callback=lambda idx, total, item, start_s, dur_s: print(
             f"   ⏳ [{idx}/{total}] {item.start_str} -> {item.end_str}: "
             f"[{item.speaker or 'Mặc định'}] {item.text[:30]}..."
         )
     )
 
     # Lưu file âm thanh hoàn chỉnh
-    tts.save_srt_audio(output_audio_path, audio)
+    tts.save(audio, output_audio_path)
     print(f"\n✅ Đã lưu file audio lồng tiếng tại: {output_audio_path}")
+    print(f"📊 Tổng thời lượng audio: {stats.get('total_duration_s', 0):.2f}s")
 
 
 if __name__ == "__main__":
