@@ -126,6 +126,11 @@ class BaseVieneuTTS(ABC):
 
     def _load_voices(self, backbone_repo: Optional[str], hf_token: Optional[str] = None, clear_existing: bool = False) -> None:
         """Unified voice loading for Local and Remote paths."""
+        # 1. Always load local built-in assets/voices.json first
+        asset_json = Path(__file__).parent / "assets" / "voices.json"
+        if asset_json.exists():
+            self._load_voices_from_file(asset_json, clear_existing=clear_existing)
+
         if not backbone_repo:
             return
 
