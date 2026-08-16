@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, List, Dict, Any, Tuple, Callable
 import json
 import numpy as np
 import logging
@@ -243,7 +243,15 @@ class BaseVieneuTTS(ABC):
                     raise ValueError("No voice specified and no preset voices available.")
 
         if voice_name not in self._preset_voices:
-            raise ValueError(f"Voice '{voice_name}' not found. Available: {self.list_preset_voices()}")
+            matched = None
+            for k in self._preset_voices:
+                if k.lower() == str(voice_name).lower():
+                    matched = k
+                    break
+            if matched:
+                voice_name = matched
+            else:
+                raise ValueError(f"Voice '{voice_name}' not found. Available: {self.list_preset_voices()}")
 
         voice_data = self._preset_voices[voice_name]
         codes = voice_data["codes"]
@@ -346,28 +354,37 @@ class BaseVieneuTTS(ABC):
 
     def _resolve_ref_voice(
         self,
-        voice: Optional[Dict[str, Any]] = None,
+        voice: Optional[Union[str, Dict[str, Any]]] = None,
         ref_audio: Optional[Union[str, Path]] = None,
         ref_codes: Optional[Union[np.ndarray, 'torch.Tensor']] = None,
         ref_text: Optional[str] = None
     ) -> tuple[Union[np.ndarray, 'torch.Tensor'], str]:
         """Resolve reference voice codes and text."""
         if voice is not None:
-            ref_codes = voice.get('codes', ref_codes)
-            ref_text = voice.get('text', ref_text)
+            if isinstance(voice, str):
+                try:
+                    voice_dict = self.get_preset_voice(voice)
+                except Exception:
+                    voice_dict = {}
+            elif isinstance(voice, dict):
+                voice_dict = voice
+            else:
+                voice_dict = {}
+            ref_codes = voice_dict.get('codes', ref_codes)
+            ref_text = voice_dict.get('text', ref_text)
 
         if ref_audio is not None and ref_codes is None:
             ref_codes = self.encode_reference(ref_audio)
         elif self._default_voice and (ref_codes is None or ref_text is None):
             try:
                 voice_data = self.get_preset_voice(None)
-                ref_codes = voice_data['codes']
-                ref_text = voice_data['text']
+                ref_codes = voice_data.get('codes', ref_codes)
+                ref_text = voice_data.get('text', ref_text)
             except Exception:
                 pass
 
         if ref_codes is None or ref_text is None:
-            raise ValueError("Must provide either 'voice' dict or both 'ref_codes' and 'ref_text'.")
+            raise ValueError("Must provide either 'voice' (preset name or dict) or both 'ref_codes' and 'ref_text'.")
 
         return ref_codes, ref_text
 
@@ -439,6 +456,102 @@ class BaseVieneuTTS(ABC):
             f"<|TEXT_PROMPT_START|>{emotion_prefix}{ref_text_phones} {input_text_phones}"
             f"<|TEXT_PROMPT_END|><|SPEECH_GENERATION_START|>{codes_str}"
         )
+
+    def infer_srt(
+        self,
+        srt_input: Union[str, Path],
+        voice: Optional[Union[str, dict]] = None,
+        ref_audio: Optional[Union[str, Path]] = None,
+        speaker_map: Optional[Dict[str, Union[str, dict]]] = None,
+        align_mode: str = "sync",
+        speed_threshold: float = 1.25,
+        lead_in_silence_s: float = 0.0,
+        apply_watermark: bool = True,
+        progress_callback: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """
+        Synthesize audio from an SRT subtitle string or file.
+
+        Args:
+            srt_input: Path to .srt file or raw SRT string.
+            voice: Default voice name or preset dictionary.
+            ref_audio: Audio file to clone voice from (if not using voice preset).
+            speaker_map: Optional mapping of speaker names in subtitle to voice presets.
+            align_mode: "sync" (Strict time-alignment with silence padding) or "sequential".
+            speed_threshold: Threshold ratio before flagging that spoken audio exceeds subtitle slot.
+            lead_in_silence_s: Initial silence offset before first subtitle (seconds).
+            apply_watermark: Apply watermark to the final waveform.
+            progress_callback: Callback `(current_idx, total_count, subtitle_item, start_s, duration_s)`.
+            **kwargs: Extra parameters passed to `self.infer(...)`.
+
+        Returns:
+            Tuple[np.ndarray, dict]: (final_waveform, statistics_and_timeline_info)
+        """
+        from vieneu_utils.srt_utils import parse_srt, build_srt_audio_timeline
+
+        items = parse_srt(srt_input)
+        if not items:
+            return np.array([], dtype=np.float32), {"total_items": 0, "total_duration_s": 0.0, "subtitles_info": []}
+
+        def _infer_item(item):
+            item_voice = voice
+            item_ref_audio = ref_audio
+            if speaker_map and item.speaker:
+                mapped = speaker_map.get(item.speaker.strip()) or speaker_map.get(item.speaker.strip().lower())
+                if mapped:
+                    if isinstance(mapped, (str, Path)) and (str(mapped).endswith((".wav", ".mp3")) or Path(mapped).exists()):
+                        item_ref_audio = str(mapped)
+                        item_voice = None
+                    else:
+                        item_voice = mapped
+                        item_ref_audio = None
+
+            return self.infer(
+                item.text,
+                voice=item_voice,
+                ref_audio=item_ref_audio,
+                apply_watermark=False,
+                **kwargs,
+            )
+
+        final_wav, stats = build_srt_audio_timeline(
+            items=items,
+            infer_chunk_fn=_infer_item,
+            sample_rate=self.sample_rate,
+            align_mode=align_mode,
+            speed_threshold=speed_threshold,
+            lead_in_silence_s=lead_in_silence_s,
+            progress_callback=progress_callback,
+        )
+
+        if apply_watermark and len(final_wav) > 0:
+            final_wav = self._apply_watermark(final_wav)
+
+        return final_wav, stats
+
+    def save_srt_audio(
+        self,
+        srt_input: Union[str, Path],
+        output_path: Union[str, Path],
+        voice: Optional[Union[str, dict]] = None,
+        ref_audio: Optional[Union[str, Path]] = None,
+        speaker_map: Optional[Dict[str, Union[str, dict]]] = None,
+        align_mode: str = "sync",
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Synthesize audio from an SRT file and save directly to output_path."""
+        final_wav, stats = self.infer_srt(
+            srt_input=srt_input,
+            voice=voice,
+            ref_audio=ref_audio,
+            speaker_map=speaker_map,
+            align_mode=align_mode,
+            **kwargs,
+        )
+        self.save(final_wav, output_path)
+        stats["output_path"] = str(output_path)
+        return stats
 
     @abstractmethod
     def infer(self, text: str, apply_watermark: bool = True, **kwargs: Any) -> np.ndarray:

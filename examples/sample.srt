@@ -1,0 +1,15 @@
+1
+00:00:01,000 --> 00:00:04,500
+Xin chào các bạn, chào mừng đến với VieNeu-TTS.
+
+2
+00:00:05,200 --> 00:00:08,800
+Phương: Hôm nay chúng ta sẽ cùng khám phá tính năng lồng tiếng phim từ file phụ đề SRT.
+
+3
+00:00:09,500 --> 00:00:13,200
+Dũng: Tính năng này tự động căn chỉnh mốc thời gian và khoảng lặng cực kỳ chuẩn xác.
+
+4
+00:00:14,000 --> 00:00:17,500
+Phương: Đặc biệt, hệ thống hỗ trợ phân vai nhiều nhân vật khác nhau nữa đó!

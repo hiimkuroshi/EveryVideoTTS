@@ -145,6 +145,19 @@ using_lmdeploy = False
 PRESET_VOICES_CACHE = []  # List of all voices (tuples or strings)
 CONV_VOICES_CACHE = []    # Filtered list for conversation (podcast=True)
 MAX_SPEAKERS = 8          # Max concurrent speakers in conversation tab
+MAX_SRT_SPEAKERS = 8      # Max concurrent speakers in SRT dubbing tab
+
+DEFAULT_SRT_EXAMPLE = """1
+00:00:01,000 --> 00:00:04,500
+Xin chào các bạn, chào mừng đến với VieNeu-TTS.
+
+2
+00:00:05,200 --> 00:00:08,800
+Đây là tính năng chuyển đổi phụ đề SRT thành giọng nói tự động.
+
+3
+00:00:09,500 --> 00:00:13,200
+Âm thanh được căn chỉnh mốc thời gian hoàn toàn khớp với phụ đề gốc."""
 
 # Normalizer (module-level singleton)
 _text_normalizer = Normalizer()
@@ -231,6 +244,7 @@ def restore_ui_state():
         msg, 
         gr.update(interactive=model_loaded), # btn_generate
         gr.update(interactive=model_loaded), # btn_generate_conv
+        gr.update(interactive=model_loaded), # btn_generate_srt
         gr.update(interactive=False)         # btn_stop
     )
 
@@ -267,17 +281,21 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
     
     # Helper for slot updates (initially no change)
     slot_no_updates = [gr.update()] * MAX_SPEAKERS
+    srt_slot_no_updates = [gr.update()] * MAX_SRT_SPEAKERS
 
     yield (
         "⏳ Đang tải model với tối ưu hóa... Lưu ý: Quá trình này sẽ tốn thời gian. Vui lòng kiên nhẫn.",
         gr.update(interactive=False), # btn_generate
         gr.update(interactive=False), # btn_generate_conv
+        gr.update(interactive=False), # btn_generate_srt
         gr.update(interactive=False), # btn_load
         gr.update(interactive=False), # btn_stop
         gr.update(), # voice_select
+        gr.update(), # srt_voice_select
         gr.update(), gr.update(), gr.update(), gr.update(), # tab_p, tab_c, tab_sel, mode_state
         gr.update(), # conv_tab
-        *slot_no_updates
+        *slot_no_updates,
+        *srt_slot_no_updates
     )
     
     try:
@@ -295,10 +313,12 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
             if not custom_model_id or not custom_model_id.strip():
                 yield (
                     "❌ Lỗi: Vui lòng nhập Model ID cho Custom Model.",
-                    gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=True), gr.update(interactive=False), gr.update(),
+                    gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=True), gr.update(interactive=False),
+                    gr.update(), gr.update(),
                     gr.update(), gr.update(), gr.update(), gr.update(),
                     gr.update(), # conv_tab
-                    *slot_no_updates
+                    *slot_no_updates,
+                    *srt_slot_no_updates
                 )
                 return
 
@@ -309,10 +329,12 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
                 if custom_base_model not in BACKBONE_CONFIGS:
                     yield (
                         f"❌ Lỗi: Base Model '{custom_base_model}' không hợp lệ.",
-                        gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=True), gr.update(interactive=False),
-                        gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                        gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=True), gr.update(interactive=False),
+                        gr.update(), gr.update(),
+                        gr.update(), gr.update(), gr.update(), gr.update(),
                         gr.update(), # conv_tab
-                        *slot_no_updates
+                        *slot_no_updates,
+                        *srt_slot_no_updates
                     )
                     return
                 
@@ -398,10 +420,12 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
                          gr.update(interactive=False),
                          gr.update(interactive=False),
                          gr.update(interactive=False),
-                         gr.update(),
+                         gr.update(interactive=False),
+                         gr.update(), gr.update(),
                          gr.update(), gr.update(), gr.update(), gr.update(),
                          gr.update(), # conv_tab
-                         *slot_no_updates
+                         *slot_no_updates,
+                         *srt_slot_no_updates
                     )
                     
                     try:
@@ -502,10 +526,12 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
                     gr.update(interactive=False),
                     gr.update(interactive=False),
                     gr.update(interactive=False),
-                    gr.update(),
+                    gr.update(interactive=False),
+                    gr.update(), gr.update(),
                     gr.update(), gr.update(), gr.update(), gr.update(),
                     gr.update(), # conv_tab
-                    *slot_no_updates
+                    *slot_no_updates,
+                    *srt_slot_no_updates
                 )
                 time.sleep(1)
                 use_lmdeploy = False
@@ -563,40 +589,26 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
                 if "ONNX" in codec_choice:
                     codec_device = "cpu"
 
-            if "gguf" in backbone_config['repo'].lower() and backbone_device == "cuda":
-                # Only Llama-cpp (GGUF) uses the 'gpu' string for CUDA
-                backbone_device = "gpu"
-            
-            print(f"📦 Loading model...")
             print(f"   Backbone: {backbone_config['repo']} on {backbone_device}")
             print(f"   Codec: {codec_config['repo']} on {codec_device}")
-            
-            if "v3-Turbo" in backbone_choice:
-                # VieNeu v3 Turbo. CPU → ONNX Runtime; GPU → PyTorch. The backend is
-                # auto-selected from the device inside Vieneu(mode="v3turbo"); ONNX
-                # graphs are fetched from the model repo's onnx/ subfolder.
-                print("   🆕 Mode: v3 Turbo (CPU=ONNX / GPU=PyTorch)")
-                # Map the app's device string to what the v3 engine understands.
-                v3_device = "cpu" if str(backbone_device).lower() == "cpu" else "auto"
-                # precision: "int8" (mặc định, subfolder onnx_int8) | "fp32" (onnx_update).
-                # Chỉ ảnh hưởng đường CPU/ONNX; trên GPU dùng PyTorch nên bỏ qua.
-                v3_precision = backbone_config.get("precision", "int8")
-                print(f"   🎚️  Precision: {v3_precision}")
+
+            # v3 Turbo backend
+            if "v3" in backbone_config["repo"].lower() or "v3" in backbone_choice.lower():
+                from vieneu import Vieneu
+                # Pass precision ("int8" vs "fp32") to select the ONNX subfolder on CPU.
+                precision = backbone_config.get("precision", "int8")
                 tts = Vieneu(
                     mode="v3turbo",
                     backbone_repo=backbone_config["repo"],
-                    device=v3_device,
-                    precision=v3_precision,
-                    hf_token=custom_hf_token,
+                    device=backbone_device,
+                    precision=precision,
                 )
-            elif "v2-Turbo" in backbone_choice:
-                # VieNeu v2 Turbo uses the dedicated backend
-                print("   ⚡ Mode: Turbo")
-                mode = "turbo_gpu" if "GPU" in backbone_choice else "turbo"
+            elif "v2-Turbo" in backbone_config["repo"] or "v2-Turbo" in backbone_choice:
+                from vieneu import Vieneu
                 tts = Vieneu(
-                    mode=mode,
+                    mode="turbo",
                     backbone_repo=backbone_config["repo"],
-                    decoder_repo=codec_config["repo"],
+                    codec_repo=codec_config["repo"],
                     device=backbone_device,
                     backend="lmdeploy" if force_lmdeploy and "GPU" in backbone_choice else "standard",
                     hf_token=custom_hf_token
@@ -617,10 +629,12 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
             if is_merged_lora and custom_loading and not using_lmdeploy:
                 yield (
                     f"🔄 Đang tải và merge LoRA adapter: {custom_model_id}...",
-                    gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=False), gr.update(),
+                    gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=False),
+                    gr.update(), gr.update(),
                     gr.update(), gr.update(), gr.update(), gr.update(),
                     gr.update(), # conv_tab
-                    *slot_no_updates
+                    *slot_no_updates,
+                    *srt_slot_no_updates
                 )
                 try:
                     # 1. Load Adapter
@@ -750,19 +764,23 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
         is_v3_conv = "v3" in (backbone_choice or "").lower()
         conv_tab_update = gr.update(visible=is_v2 or is_v3_conv)
 
-        # Update all MAX_SPEAKERS slot dropdowns
+        # Update all slot dropdowns
         slot_updates = [slot_dd_update] * MAX_SPEAKERS
+        srt_slot_updates = [slot_dd_update] * MAX_SRT_SPEAKERS
 
         yield (
             success_msg,
             gr.update(interactive=True), # btn_generate
             gr.update(interactive=True), # btn_generate_conv
+            gr.update(interactive=True), # btn_generate_srt
             gr.update(interactive=True), # btn_load
             gr.update(interactive=False), # btn_stop
             voice_update,
+            voice_update, # srt_voice_select
             tab_p, tab_c, tab_sel, mode_state,
             conv_tab_update,
-            *slot_updates
+            *slot_updates,
+            *srt_slot_updates
         )
         
     except Exception as e:
@@ -776,24 +794,30 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
                 "❌ Lỗi khi tải model: Không tìm thấy biến môi trường CUDA_PATH. Vui lòng cài đặt NVIDIA GPU Computing Toolkit (https://developer.nvidia.com/cuda/toolkit)",
                 gr.update(interactive=False),
                 gr.update(interactive=False), # btn_generate_conv
+                gr.update(interactive=False), # btn_generate_srt
                 gr.update(interactive=True), # btn_load
                 gr.update(interactive=False), # btn_stop
                 gr.update(), # voice_select
+                gr.update(), # srt_voice_select
                 gr.update(), gr.update(), gr.update(), gr.update(),
                 gr.update(), # conv_tab
-                *slot_no_updates
+                *slot_no_updates,
+                *srt_slot_no_updates
             )
         else: 
             yield (
                 f"❌ Lỗi khi tải model: {str(e)}",
                 gr.update(interactive=False),
                 gr.update(interactive=False),
+                gr.update(interactive=False),
                 gr.update(interactive=True),
                 gr.update(interactive=False),
                 gr.update(),
+                gr.update(),
                 gr.update(), gr.update(), gr.update(), gr.update(),
                 gr.update(), # conv_tab
-                *slot_no_updates
+                *slot_no_updates,
+                *srt_slot_no_updates
             )
 
 
@@ -1749,6 +1773,255 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     except Exception as e:
         return f"⚠️ Lỗi khi đọc PDF: {str(e)}"
 
+
+def parse_and_preview_srt(srt_file, srt_text):
+    """Parse SRT content from file or text, return summary markdown, text content, and speaker slot updates."""
+    from vieneu_utils.srt_utils import parse_srt, extract_srt_speakers
+    global CONV_VOICES_CACHE, PRESET_VOICES_CACHE
+    
+    content = ""
+    if srt_file:
+        try:
+            with open(srt_file, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except Exception:
+            content = str(srt_text or "")
+    else:
+        content = str(srt_text or "")
+
+    if not content.strip():
+        spk_name_updates = [gr.update(value="", visible=False)] * MAX_SRT_SPEAKERS
+        spk_dd_updates = [gr.update(value=None, visible=False)] * MAX_SRT_SPEAKERS
+        spk_row_updates = [gr.update(visible=False)] * MAX_SRT_SPEAKERS
+        return (
+            "⚠️ *Vui lòng tải file hoặc nhập nội dung SRT.*",
+            content,
+            *spk_name_updates,
+            *spk_dd_updates,
+            *spk_row_updates,
+        )
+
+    items = parse_srt(content)
+    if not items:
+        spk_name_updates = [gr.update(value="", visible=False)] * MAX_SRT_SPEAKERS
+        spk_dd_updates = [gr.update(value=None, visible=False)] * MAX_SRT_SPEAKERS
+        spk_row_updates = [gr.update(visible=False)] * MAX_SRT_SPEAKERS
+        return (
+            "❌ *Không tìm thấy câu phụ đề hợp lệ trong nội dung SRT!*",
+            content,
+            *spk_name_updates,
+            *spk_dd_updates,
+            *spk_row_updates,
+        )
+
+    total_subs = len(items)
+    first_start = items[0].start_str
+    last_end = items[-1].end_str
+    total_dur_s = (items[-1].end_ms - items[0].start_ms) / 1000.0
+    detected_speakers = extract_srt_speakers(items)
+
+    spk_info = f", gồm **{len(detected_speakers)} nhân vật** (`{', '.join(detected_speakers)}`)" if detected_speakers else ""
+    summary_md = (
+        f"✅ Đã quét thành công **{total_subs} câu phụ đề**{spk_info}.\n\n"
+        f"⏱️ **Mốc thời gian:** `{first_start}` ➔ `{last_end}` (Tổng timeline: ~`{total_dur_s:.1f}s`)\n\n"
+        f"📝 **Xem trước 3 câu đầu:**\n"
+    )
+    for it in items[:3]:
+        spk_tag = f"**[{it.speaker}]** " if it.speaker else ""
+        summary_md += f"- `{it.start_str}` ➔ `{it.end_str}`: {spk_tag}{it.text}\n"
+
+    # Auto-match speaker slots
+    def _best_match_spk(name):
+        voice_pool = PRESET_VOICES_CACHE or CONV_VOICES_CACHE
+        if not voice_pool:
+            return None
+        name_l = name.lower()
+        for v in voice_pool:
+            label, value = (v[0], v[1]) if isinstance(v, tuple) else (v, v)
+            if name_l in label.lower() or name_l in value.lower() or label.lower() in name_l or value.lower() in name_l:
+                return value
+        first_voice = voice_pool[0]
+        return first_voice[1] if isinstance(first_voice, tuple) else first_voice
+
+    spk_name_updates, spk_dd_updates, spk_row_updates = [], [], []
+    for i in range(MAX_SRT_SPEAKERS):
+        if i < len(detected_speakers):
+            spk_name_updates.append(gr.update(value=detected_speakers[i], visible=True))
+            spk_dd_updates.append(gr.update(value=_best_match_spk(detected_speakers[i]), choices=PRESET_VOICES_CACHE, visible=True))
+            spk_row_updates.append(gr.update(visible=True))
+        else:
+            spk_name_updates.append(gr.update(value="", visible=False))
+            spk_dd_updates.append(gr.update(value=None, choices=PRESET_VOICES_CACHE, visible=False))
+            spk_row_updates.append(gr.update(visible=False))
+
+    return (
+        summary_md,
+        content,
+        *spk_name_updates,
+        *spk_dd_updates,
+        *spk_row_updates,
+    )
+
+
+def synthesize_srt_speech(
+    srt_file,
+    srt_text,
+    default_voice,
+    custom_audio,
+    denoise_audio,
+    srt_mode_state,
+    align_mode_str,
+    lead_in_s,
+    temperature,
+    max_chars_chunk,
+    session_id,
+    *srt_speaker_args
+):
+    """Synthesize speech from SRT subtitles with timeline alignment."""
+    global tts, model_loaded
+    _STOP_EVENT.clear()
+
+    if not model_loaded or tts is None:
+        yield None, "⚠️ Vui lòng tải model trước!"
+        return
+
+    content = ""
+    if srt_file:
+        try:
+            with open(srt_file, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except Exception:
+            content = str(srt_text or "")
+    else:
+        content = str(srt_text or "")
+
+    if not content.strip():
+        yield None, "⚠️ Vui lòng tải lên file SRT hoặc nhập nội dung phụ đề!"
+        return
+
+    from vieneu_utils.srt_utils import parse_srt
+    items = parse_srt(content)
+    if not items:
+        yield None, "⚠️ Không tìm thấy câu phụ đề hợp lệ nào trong nội dung SRT!"
+        return
+
+    # Build speaker mapping
+    spk_names = list(srt_speaker_args[:MAX_SRT_SPEAKERS])
+    spk_voices = list(srt_speaker_args[MAX_SRT_SPEAKERS:MAX_SRT_SPEAKERS * 2])
+    speaker_map = {}
+    for name, v in zip(spk_names, spk_voices):
+        name_s = str(name).strip() if name else ""
+        if name_s and v:
+            v_id = resolve_voice_id(str(v))
+            speaker_map[name_s.lower()] = v_id
+
+    # Resolve default voice
+    def_voice_id = resolve_voice_id(str(default_voice)) if default_voice else tts._default_voice
+    ref_audio_path = custom_audio if (srt_mode_state == "srt_custom_mode" and custom_audio and os.path.exists(custom_audio)) else None
+
+    align_mode = "sync" if "sync" in str(align_mode_str).lower() else "sequential"
+    sr = getattr(tts, "sample_rate", 48000)
+
+    yield None, f"🎬 Đang khởi tạo lồng tiếng ({len(items)} câu phụ đề)..."
+    start_t = time.time()
+
+    timeline_chunks = []
+    current_ms = int(lead_in_s * 1000)
+    subtitles_info = []
+
+    try:
+        for i, item in enumerate(items):
+            if _STOP_EVENT.is_set():
+                yield None, "⏹️ Đã dừng lồng tiếng SRT."
+                return
+
+            target_start_ms = item.start_ms
+            target_end_ms = item.end_ms
+            slot_duration_ms = item.duration_ms
+
+            if align_mode == "sync":
+                if target_start_ms > current_ms:
+                    silence_ms = target_start_ms - current_ms
+                    silence_samples = int(silence_ms / 1000.0 * sr)
+                    if silence_samples > 0:
+                        timeline_chunks.append(np.zeros(silence_samples, dtype=np.float32))
+                    current_ms = target_start_ms
+
+            actual_start_ms = current_ms
+
+            # Resolve voice
+            cur_voice = def_voice_id
+            cur_ref = ref_audio_path
+            if item.speaker and item.speaker.strip().lower() in speaker_map:
+                cur_voice = speaker_map[item.speaker.strip().lower()]
+                cur_ref = None
+
+            spk_display = f"[{item.speaker}] " if item.speaker else ""
+            yield None, f"⏳ [{i+1}/{len(items)}] {item.start_str} ➔ {item.end_str}: {spk_display}{item.text[:35]}..."
+
+            try:
+                wav = tts.infer(
+                    item.text,
+                    voice=cur_voice,
+                    ref_audio=cur_ref,
+                    denoise=denoise_audio,
+                    temperature=temperature,
+                    max_chars=max_chars_chunk,
+                    apply_watermark=False
+                )
+            except Exception as e:
+                print(f"❌ Lỗi câu SRT {i+1}: {e}")
+                wav = np.array([], dtype=np.float32)
+
+            if wav is None or len(wav) == 0:
+                wav = np.array([], dtype=np.float32)
+
+            wav_len = len(wav)
+            actual_duration_ms = int((wav_len / sr) * 1000) if sr > 0 else 0
+            timeline_chunks.append(wav)
+            current_ms += actual_duration_ms
+
+            ratio = (actual_duration_ms / slot_duration_ms) if slot_duration_ms > 0 else 1.0
+            subtitles_info.append({"index": item.index, "ratio": ratio})
+
+        if align_mode == "sync" and items:
+            last_end_ms = items[-1].end_ms
+            if last_end_ms > current_ms:
+                trailing_ms = last_end_ms - current_ms
+                trailing_samples = int(trailing_ms / 1000.0 * sr)
+                if trailing_samples > 0:
+                    timeline_chunks.append(np.zeros(trailing_samples, dtype=np.float32))
+
+        if not timeline_chunks:
+            yield None, "❌ Không thể tạo được âm thanh nào từ file SRT!"
+            return
+
+        yield None, "🪄 Đang ghép nối và xuất audio hoàn chỉnh..."
+        final_wav = np.concatenate(timeline_chunks)
+        if hasattr(tts, "_apply_watermark"):
+            final_wav = tts._apply_watermark(final_wav)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+            sf.write(tmp.name, final_wav, sr)
+            elapsed = time.time() - start_t
+            total_audio_s = len(final_wav) / sr
+            over_count = sum(1 for x in subtitles_info if x["ratio"] > 1.25)
+            warning_sub = f" (⚠️ Có {over_count} câu đọc dài hơn khung thời gian phụ đề)" if over_count > 0 else ""
+            yield tmp.name, f"✅ Hoàn tất lồng tiếng SRT! ({len(items)} câu, Audio: {total_audio_s:.1f}s, Xử lý trong {elapsed:.1f}s){warning_sub}"
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        yield None, f"❌ Lỗi hệ thống khi lồng tiếng SRT: {str(e)}"
+    finally:
+        cleanup_gpu_memory()
+
+
+def synthesize_srt_with_empty_estimate(*args):
+    for audio_path, status in synthesize_srt_speech(*args):
+        yield audio_path, status, ""
+
+
 EXAMPLES_LIST = [
     ["Về miền Tây không chỉ để ngắm nhìn sông nước hữu tình, mà còn để cảm nhận tấm chân tình của người dân nơi đây.", "Vĩnh (nam miền Nam)"],
     ["Hà Nội những ngày vào thu mang một vẻ đẹp trầm mặc và cổ kính đến lạ thường.", "Bình (nam miền Bắc)"],
@@ -2054,6 +2327,62 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
                         
                         btn_generate_conv = gr.Button("🎭 Bắt đầu hội thoại", variant="primary", interactive=False)
 
+                    # --- TAB 3: SRT DUBBING ---
+                    with gr.Tab("🎬 Lồng tiếng SRT", id="srt_tab") as srt_tab:
+                        with gr.Accordion("📄 Tải lên file phụ đề (.srt)", open=True):
+                            srt_file_upload = gr.File(
+                                label="📄 Chọn file phụ đề (.srt hoặc .txt)",
+                                file_types=[".srt", ".txt"],
+                                file_count="single",
+                                type="filepath",
+                            )
+                        srt_text_input = gr.Textbox(
+                            label="Nội dung phụ đề (SRT)",
+                            placeholder="1\n00:00:01,000 --> 00:00:04,500\nXin chào các bạn...",
+                            lines=7,
+                            value=DEFAULT_SRT_EXAMPLE,
+                        )
+                        with gr.Row():
+                            btn_parse_srt = gr.Button("🔍 Quét & Phân tích SRT", size="sm", variant="secondary")
+                        
+                        srt_summary_md = gr.Markdown("ℹ️ *Nhấn **Quét & Phân tích SRT** để kiểm tra câu thoại và tự động nhận diện nhân vật.*")
+
+                        srt_mode_state = gr.State("srt_preset_mode")
+
+                        with gr.Tabs() as srt_voice_tabs:
+                            with gr.TabItem("👤 Giọng mặc định (Preset)", id="srt_preset_mode") as srt_tab_preset:
+                                srt_voice_select = gr.Dropdown(choices=PRESET_VOICES_CACHE, value=None, label="🎤 Giọng đọc chính", allow_custom_value=True)
+
+                            with gr.TabItem("🦜 Voice Cloning", id="srt_custom_mode") as srt_tab_custom:
+                                with gr.Group() as srt_cloning_elements_group:
+                                    srt_custom_audio = gr.Audio(label="Audio giọng mẫu (3-5 giây) (.wav)", type="filepath")
+                                    srt_cloning_warning_msg = gr.Markdown(visible=False)
+                                    srt_denoise_cb = gr.Checkbox(value=True, label="🔇 Khử nhiễu audio mẫu", info="Khử nhiễu nền trước khi clone giọng.")
+
+                        with gr.Accordion("👥 Phân vai nhân vật trong SRT (Tùy chọn)", open=False) as srt_speakers_accordion:
+                            gr.Markdown("*Nếu phụ đề có định dạng `Tên: Lời thoại` hoặc `[Tên] Lời thoại`, bạn có thể gán giọng riêng cho từng nhân vật ở đây:*")
+                            srt_speaker_name_boxes = []
+                            srt_speaker_voice_dds  = []
+                            srt_speaker_slot_rows  = []
+
+                            for _i in range(MAX_SRT_SPEAKERS):
+                                with gr.Row(visible=False) as _srow:
+                                    _sname = gr.Textbox(value="", label="👤 Nhân vật", interactive=False, scale=1, min_width=120)
+                                    _sdd = gr.Dropdown(choices=PRESET_VOICES_CACHE, value=None, label="🎤 Giọng đọc", interactive=True, scale=3, allow_custom_value=True)
+                                srt_speaker_slot_rows.append(_srow)
+                                srt_speaker_name_boxes.append(_sname)
+                                srt_speaker_voice_dds.append(_sdd)
+
+                        with gr.Row():
+                            srt_align_mode = gr.Radio(
+                                ["Strict Sync (Khớp chính xác Timeline)", "Sequential (Đọc nối tiếp theo khoảng cách)"],
+                                value="Strict Sync (Khớp chính xác Timeline)",
+                                label="⏱️ Chế độ căn chỉnh Timeline"
+                            )
+                            srt_lead_in = gr.Slider(minimum=0.0, maximum=5.0, value=0.0, step=0.1, label="⏱️ Độ trễ đầu (Lead-in giây)")
+
+                        btn_generate_srt = gr.Button("🎬 Bắt đầu lồng tiếng SRT", variant="primary", interactive=False)
+
                 # Global Generation Settings
                 with gr.Row():
                     use_batch = gr.Checkbox(
@@ -2130,8 +2459,11 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
         # Bind tab events to update state
         tab_preset.select(lambda: "preset_mode", outputs=current_mode_state)
         tab_custom.select(lambda: "custom_mode", outputs=current_mode_state)
+        srt_tab_preset.select(lambda: "srt_preset_mode", outputs=srt_mode_state)
+        srt_tab_custom.select(lambda: "srt_custom_mode", outputs=srt_mode_state)
         
         custom_audio.change(validate_audio_duration, inputs=[custom_audio], outputs=[cloning_warning_msg])
+        srt_custom_audio.change(validate_audio_duration, inputs=[srt_custom_audio], outputs=[srt_cloning_warning_msg])
         
         # --- Custom Model Event Handlers ---
 
@@ -2139,13 +2471,9 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
             is_custom = (choice == "Custom Model")
             is_v3 = "v3" in (choice or "").lower()
             is_v2_gpu = (choice == "VieNeu-TTS-v2 (GPU)")
-            # Voice Cloning: v3 clones from audio only; v2 (GPU) clones from
-            # audio + a reference transcript. Both expose the cloning tab.
             clone_ok = is_v3 or is_v2_gpu
             print(f"   🔄 Backbone changed to: {choice}")
             
-            # 1. Device logic
-            # Allow hardware acceleration (MPS/CUDA/Auto) for all GPU models AND Turbo (GGUF) models
             is_hw_accel_supported = "(GPU)" in choice or "v2-Turbo" in choice or "v3" in choice.lower() or is_custom
             
             if is_hw_accel_supported:
@@ -2155,9 +2483,7 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
                 dev_choices = ["CPU"]
                 initial_dev = "CPU"
             
-            # 2. Parameter logic
             if is_v3:
-                # v3 Turbo uses its own MOSS codec (PyTorch); 0.8 khớp bản tham chiếu.
                 codec_update = gr.update(value="VieNeu-Codec", interactive=False)
                 text_update = gr.update(value=DEFAULT_TEXT_V3)
                 temp_update = gr.update(value=0.8)
@@ -2174,7 +2500,6 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
                 text_update = gr.update(value=DEFAULT_TEXT_GPU)
                 temp_update = gr.update(value=0.7)
 
-            # Reference-transcript box + info text differ between v2 and v3 clone.
             if is_v2_gpu:
                 clone_info_update = gr.update(value=(
                     "ℹ️ **Voice Cloning (VieNeu-TTS v2).** Tải lên audio mẫu 3–5 giây "
@@ -2194,12 +2519,13 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
                 temp_update,
                 gr.update(choices=dev_choices, value=initial_dev),
                 gr.update(visible=clone_ok),   # cloning_elements_group
-                gr.update(visible=clone_ok),   # tab_custom — clone tab (v3 + v2 GPU)
-                gr.update(value=32 if is_v3 else 4),  # max_batch_size_run — v3 batches chunks
-                gr.update(visible=not is_v3),  # use_lmdeploy_cb — irrelevant for v3 (PyTorch, no LMDeploy)
-                gr.update(visible=is_v2_gpu),  # custom_text — only v2 needs a reference transcript
+                gr.update(visible=clone_ok),   # tab_custom
+                gr.update(value=32 if is_v3 else 4),  # max_batch_size_run
+                gr.update(visible=not is_v3),  # use_lmdeploy_cb
+                custom_text,                   # only v2 needs a reference transcript
                 clone_info_update,             # clone_info_md
-                gr.update(value=256),  # max_chars_chunk_slider
+                gr.update(value=256),          # max_chars_chunk_slider
+                gr.update(visible=clone_ok),   # srt_tab_custom
             )
 
         backbone_select.change(
@@ -2218,6 +2544,7 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
                 custom_text,
                 clone_info_md,
                 max_chars_chunk_slider,
+                srt_tab_custom,
             ]
         )
         
@@ -2231,10 +2558,11 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
             fn=load_model,
             inputs=[backbone_select, codec_select, device_choice, use_lmdeploy_cb,
                     custom_backbone_model_id, custom_backbone_base_model, custom_backbone_hf_token],
-            outputs=[model_status, btn_generate, btn_generate_conv, btn_load, btn_stop, voice_select,
+            outputs=[model_status, btn_generate, btn_generate_conv, btn_generate_srt, btn_load, btn_stop, voice_select, srt_voice_select,
                      tab_preset, tab_custom, tabs, current_mode_state,
                      conv_tab,
-                     *speaker_voice_dds]
+                     *speaker_voice_dds,
+                     *srt_speaker_voice_dds]
         )
         
         # --- PDF Upload Event Handlers ---
@@ -2263,6 +2591,59 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
             fn=on_pdf_upload,
             inputs=[pdf_upload],
             outputs=[text_input, pdf_status]
+        )
+
+        # --- SRT Parse & Preview Event Handlers ---
+        btn_parse_srt.click(
+            fn=parse_and_preview_srt,
+            inputs=[srt_file_upload, srt_text_input],
+            outputs=[
+                srt_summary_md,
+                srt_text_input,
+                *srt_speaker_name_boxes,
+                *srt_speaker_voice_dds,
+                *srt_speaker_slot_rows,
+            ]
+        )
+        srt_file_upload.change(
+            fn=parse_and_preview_srt,
+            inputs=[srt_file_upload, srt_text_input],
+            outputs=[
+                srt_summary_md,
+                srt_text_input,
+                *srt_speaker_name_boxes,
+                *srt_speaker_voice_dds,
+                *srt_speaker_slot_rows,
+            ]
+        )
+
+        # --- SRT Generation Handler ---
+        srt_gen_event = btn_generate_srt.click(
+            fn=synthesize_srt_with_empty_estimate,
+            inputs=[
+                srt_file_upload,
+                srt_text_input,
+                srt_voice_select,
+                srt_custom_audio,
+                srt_denoise_cb,
+                srt_mode_state,
+                srt_align_mode,
+                srt_lead_in,
+                temperature_slider,
+                max_chars_chunk_slider,
+                session_id_state,
+                *srt_speaker_name_boxes,
+                *srt_speaker_voice_dds,
+            ],
+            outputs=[audio_output, status_output, estimate_output]
+        )
+        btn_generate_srt.click(lambda: gr.update(visible=False), outputs=[download_btn])
+        btn_generate_srt.click(lambda: gr.update(interactive=True), outputs=btn_stop)
+        srt_gen_event.then(lambda: gr.update(interactive=False), outputs=btn_stop)
+        srt_gen_event.then(
+            fn=lambda a: gr.update(value=a, visible=bool(a and os.path.exists(a))),
+            inputs=[audio_output],
+            outputs=[download_btn]
         )
 
         # --- Conversation Event Handlers ---
@@ -2297,6 +2678,11 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
             inputs=backbone_select,
             outputs=temperature_slider
         )
+        srt_tab.select(
+            fn=lambda bb: gr.update(value=0.8 if "v3" in (bb or "").lower() else default_temp),
+            inputs=backbone_select,
+            outputs=temperature_slider
+        )
         
         # --- Standard Generation Handlers ---
         gen_event = btn_generate.click(
@@ -2318,8 +2704,6 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
             return None, "⏹️ Đã dừng tạo giọng nói.", "", gr.update(interactive=False)
 
         # Handler: set stop event + update UI
-        # Note: We avoid cancels= here to prevent internal Gradio KeyError crashes,
-        # relying instead on the frequent _STOP_EVENT.is_set() checks in the code.
         btn_stop.click(fn=request_stop, outputs=[audio_output, status_output, estimate_output, btn_stop])
 
         # --- Download Button Event Handlers ---
@@ -2329,7 +2713,7 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
                 return gr.update(value=audio_path, visible=True)
             return gr.update(visible=False)
 
-        # Connect to generation events (must be after gen_event/conv_gen_event are defined)
+        # Connect to generation events
         gen_event.then(
             fn=on_audio_generated,
             inputs=[audio_output],
@@ -2349,7 +2733,7 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS", head=head_html) as demo
         # Persistence: Restore UI state on load
         demo.load(
             fn=restore_ui_state,
-            outputs=[model_status, btn_generate, btn_generate_conv, btn_stop]
+            outputs=[model_status, btn_generate, btn_generate_conv, btn_generate_srt, btn_stop]
         )
 
 def main():

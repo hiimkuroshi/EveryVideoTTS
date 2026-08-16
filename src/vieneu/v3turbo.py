@@ -193,7 +193,15 @@ class V3TurboVieNeuTTS(BaseVieneuTTS):
     def get_preset_voice(self, voice_name: Optional[str] = None) -> dict:
         name = voice_name or self._default_voice
         if name not in self._preset_voices:
-            raise ValueError(f"Voice '{name}' not found. Available: {list(self._preset_voices)}")
+            matched = None
+            for k in self._preset_voices:
+                if k.lower() == str(name).lower():
+                    matched = k
+                    break
+            if matched:
+                name = matched
+            else:
+                raise ValueError(f"Voice '{name}' not found. Available: {list(self._preset_voices)}")
         return self._preset_voices[name]
 
     def encode_reference(self, ref_audio: Union[str, Path], denoise: bool = True) -> Tuple[np.ndarray, np.ndarray]:

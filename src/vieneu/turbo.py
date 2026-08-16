@@ -67,6 +67,11 @@ class BaseTurboVieNeuTTS(BaseVieneuTTS):
         )
 
     def _get_voice_params(self, voice: Any) -> np.ndarray:
+        if isinstance(voice, str):
+            try:
+                voice = self.get_preset_voice(voice)
+            except Exception:
+                voice = None
         if isinstance(voice, dict):
             voice = voice.get("codes")
         if isinstance(voice, (np.ndarray, list)):
