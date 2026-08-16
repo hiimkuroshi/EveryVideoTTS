@@ -82,11 +82,11 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/hiimkuroshi/VieNeu-TTS-Studio"
-"Repository" = "https://github.com/hiimkuroshi/VieNeu-TTS-Studio"
-"Bug Tracker" = "https://github.com/hiimkuroshi/VieNeu-TTS-Studio/issues"
-"Documentation" = "https://github.com/hiimkuroshi/VieNeu-TTS-Studio/blob/main/README.md"
-"Source Code" = "https://github.com/hiimkuroshi/VieNeu-TTS-Studio"
+"Homepage" = "https://github.com/hiimkuroshi/EveryVideoTTS"
+"Repository" = "https://github.com/hiimkuroshi/EveryVideoTTS"
+"Bug Tracker" = "https://github.com/hiimkuroshi/EveryVideoTTS/issues"
+"Documentation" = "https://github.com/hiimkuroshi/EveryVideoTTS/blob/main/README.md"
+"Source Code" = "https://github.com/hiimkuroshi/EveryVideoTTS"
 "Changelog" = "https://github.com/pnnbao97/VieNeu-TTS/releases"
 
 [project.optional-dependencies]

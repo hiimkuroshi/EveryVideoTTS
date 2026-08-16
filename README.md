@@ -1,13 +1,13 @@
 # 🎬 EveryVideoTTS
 
 [![Awesome](https://img.shields.io/badge/Awesome-NLP-green?logo=github)](https://github.com/keon/awesome-nlp)
-[![GitHub](https://img.shields.io/badge/GitHub-VieNeu--TTS--Studio-181717?logo=github)](https://github.com/hiimkuroshi/EveryVideoTTS)
+[![GitHub](https://img.shields.io/badge/GitHub-EveryVideoTTS-181717?logo=github)](https://github.com/hiimkuroshi/EveryVideoTTS)
 
 <img width="1087" height="710" alt="image" src="https://github.com/user-attachments/assets/5534b5db-f30b-4d27-8a35-80f1cf6e5d4d" />
 
 **EveryVideoTTS** is a high-performance Vietnamese AI Text-to-Speech (TTS), Instant Voice Cloning, and Video/SRT Subtitle Dubbing Studio.
 
-> 📌 **Based on the repository:** [EveryVideoTTS](https://github.com/hiimkuroshi/EveryVideoTTS)
+> 📌 **Repository:** [EveryVideoTTS](https://github.com/hiimkuroshi/EveryVideoTTS)
 
 > [!NOTE]
 > **🆕 EveryVideoTTS v3 Turbo is available!**

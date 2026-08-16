@@ -2191,8 +2191,8 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
             <a href="https://github.com/hiimkuroshi" target="_blank" class="chip-item chip-author">
                 <span>👤</span> Tác giả: Tyr
             </a>
-            <a href="https://github.com/hiimkuroshi/VieNeu-TTS-Studio" target="_blank" class="chip-item chip-repo">
-                <span>⭐</span> VieNeu-TTS-Studio
+            <a href="https://github.com/hiimkuroshi/EveryVideoTTS" target="_blank" class="chip-item chip-repo">
+                <span>⭐</span> EveryVideoTTS
             </a>
             <span class="chip-item chip-badge">
                 <span>⚡</span> 48 kHz Studio Quality

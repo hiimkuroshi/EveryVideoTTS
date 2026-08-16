@@ -5,7 +5,7 @@
     "engine": "EveryVideoTTS",
     "author": "Tyr",
     "license": "CC BY-NC 4.0",
-    "homepage": "https://github.com/hiimkuroshi/VieNeu-TTS-Studio"
+    "homepage": "https://github.com/hiimkuroshi/EveryVideoTTS"
   },
   "default_voice": "Binh",
   "presets": {

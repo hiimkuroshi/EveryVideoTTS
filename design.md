@@ -70,7 +70,7 @@ graph TD
 * **Logo & Nhận diện:** Biểu tượng 🎬 bo góc tinh tế kèm tên thương hiệu **EveryVideoTTS Studio** và phụ đề định vị sản phẩm.
 * **Metadata Chips:**
   - `👤 Tác giả: Tyr` (Liên kết GitHub).
-  - `⭐ VieNeu-TTS-Studio` (Liên kết mã nguồn gốc).
+  - `⭐ EveryVideoTTS` (Liên kết mã nguồn: https://github.com/hiimkuroshi/EveryVideoTTS).
   - `⚡ 48 kHz Studio Quality` (Badge chất lượng cao).
 
 ---

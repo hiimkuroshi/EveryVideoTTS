@@ -5,7 +5,7 @@
 ## 📌 1. Tổng Quan Dự Án
 * **Tên dự án:** **EveryVideoTTS Studio**
 * **Tác giả:** **Tyr** ([GitHub: hiimkuroshi](https://github.com/hiimkuroshi))
-* **Repository:** [https://github.com/hiimkuroshi/VieNeu-TTS-Studio](https://github.com/hiimkuroshi/VieNeu-TTS-Studio)
+* **Repository:** [https://github.com/hiimkuroshi/EveryVideoTTS](https://github.com/hiimkuroshi/EveryVideoTTS)
 * **Mô tả cốt lõi:** Hệ thống Studio chuyển văn bản thành giọng nói tiếng Việt AI chất lượng cao (48 kHz), Voice Cloning tức thì (3-5s), Lồng tiếng Video từ phụ đề SRT với công nghệ **Studio-Grade WSOLA** chống rè, và xử lý song song siêu tốc trên GPU (Batch Size 32-64).
 
 ---

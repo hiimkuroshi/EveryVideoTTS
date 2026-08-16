@@ -1,7 +1,7 @@
 # 🎬 EveryVideoTTS
 
 **EveryVideoTTS** is an advanced Vietnamese AI Text-to-Speech (TTS), Instant Voice Cloning, and Video SRT Subtitle Dubbing Studio.  
-Based on [VieNeu-TTS-Studio](https://github.com/hiimkuroshi/VieNeu-TTS-Studio). Author: **Tyr**.
+Repository: [EveryVideoTTS](https://github.com/hiimkuroshi/EveryVideoTTS). Author: **Tyr**.
 
 ## ✨ Key Features
 - **v3 Turbo, 48 kHz** — high-fidelity, natural Vietnamese speech (default).
