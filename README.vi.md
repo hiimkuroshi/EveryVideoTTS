@@ -1,13 +1,13 @@
 # 🎬 EveryVideoTTS
 
 [![Awesome](https://img.shields.io/badge/Awesome-NLP-green?logo=github)](https://github.com/keon/awesome-nlp)
-[![GitHub](https://img.shields.io/badge/GitHub-VieNeu--TTS--Studio-181717?logo=github)](https://github.com/hiimkuroshi/VieNeu-TTS-Studio)
+[![GitHub](https://img.shields.io/badge/GitHub-VieNeu--TTS--Studio-181717?logo=github)](https://github.com/hiimkuroshi/EveryVideoTTS)
 
 <img width="1087" height="710" alt="image" src="https://github.com/user-attachments/assets/5534b5db-f30b-4d27-8a35-80f1cf6e5d4d" />
 
 **EveryVideoTTS** là Studio chuyển đổi văn bản thành giọng nói (TTS) tiếng Việt AI chất lượng cao, Clone giọng nói tức thì và Lồng tiếng Video tự động từ phụ đề SRT.
 
-> 📌 **Dựa trên repo gốc:** [VieNeu-TTS-Studio](https://github.com/hiimkuroshi/VieNeu-TTS-Studio)
+> 📌 **Dựa trên repo gốc:** [EveryVideoTTS](https://github.com/hiimkuroshi/EveryVideoTTS)
 
 > [!NOTE]
 > **🆕 EveryVideoTTS v3 Turbo:**
@@ -52,8 +52,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 1. **Clone Repo:**
    ```bash
-   git clone https://github.com/hiimkuroshi/VieNeu-TTS-Studio.git
-   cd VieNeu-TTS-Studio
+   git clone https://github.com/hiimkuroshi/EveryVideoTTS.git
+   cd EveryVideoTTS
    ```
 
 2. **Cài đặt các phụ thuộc:**
@@ -364,7 +364,7 @@ docker run --gpus all \
 ## 🤝 6. Hỗ trợ & Liên hệ <a name="support"></a>
 
 - **Tác giả:** **Tyr**
-- **Repository:** [VieNeu-TTS-Studio](https://github.com/hiimkuroshi/VieNeu-TTS-Studio)
+- **Repository:** [EveryVideoTTS](https://github.com/hiimkuroshi/EveryVideoTTS)
 - **GitHub Profile:** [hiimkuroshi](https://github.com/hiimkuroshi)
 - **Giấy phép:** Apache 2.0 (Sử dụng tự do).
 
@@ -376,7 +376,7 @@ docker run --gpus all \
   title        = {EveryVideoTTS: Advanced Vietnamese Text-to-Speech & Video SRT Dubbing Studio},
   author       = {Tyr},
   year         = {2026},
-  howpublished = {\url{https://github.com/hiimkuroshi/VieNeu-TTS-Studio}}
+  howpublished = {\url{https://github.com/hiimkuroshi/EveryVideoTTS}}
 }
 ```
 
