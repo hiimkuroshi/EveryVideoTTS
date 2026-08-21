@@ -8,6 +8,9 @@ The encoder is a frozen ONNX graph: it takes an 80-dim Kaldi fbank
 Used both offline (scripts/extract_xvector.py) to cache per-utterance embeddings, and
 at inference (inference.py) to extract one vector per reference voice. Only the small
 trainable `xvec_proj` inside the TTS model is learned; this encoder is never trained.
+
+Torch-free: the whole pipeline (mono downmix, soxr resample, kaldi-native-fbank,
+onnxruntime) runs on numpy, so voice cloning works on the minimal install.
 """
 from __future__ import annotations
 
@@ -15,8 +18,8 @@ import os
 from typing import Optional, Sequence, Union
 
 import numpy as np
-import torch
 
+from .audio_utils import _to_numpy
 from .fbank import _SPEAKER_FBANK_SAMPLE_RATE, extract_speaker_fbank
 
 EMBED_DIM = 192  # speaker embedding output dimension
@@ -77,15 +80,14 @@ class OnnxSpeakerEncoder:
         return cls(onnx_path, device=device, **kwargs)
 
     # ── Extraction ──────────────────────────────────────────────────────────
-    def _to_mono(self, wav: torch.Tensor) -> torch.Tensor:
-        wav = torch.as_tensor(wav, dtype=torch.float32)
+    def _to_mono(self, wav) -> np.ndarray:
+        wav = _to_numpy(wav)
         if wav.ndim == 2:
-            wav = wav.mean(0) if wav.shape[0] > 1 else wav[0]
+            wav = wav.mean(axis=0) if wav.shape[0] > 1 else wav[0]
         elif wav.ndim != 1:
             raise ValueError(f"Expected 1D or 2D waveform, got shape {tuple(wav.shape)}")
         return wav
 
-    @torch.no_grad()
     def embed(self, wav, sr: int) -> np.ndarray:
         """One waveform → (192,) float32 x-vector.
 
@@ -96,17 +98,16 @@ class OnnxSpeakerEncoder:
         mono = self._to_mono(wav)
         if self.max_seconds > 0:
             cap = int(sr * self.max_seconds)
-            if mono.numel() > cap:
+            if mono.shape[0] > cap:
                 mono = mono[:cap]
         feat = extract_speaker_fbank(mono, sample_rate=sr)          # (T, 80) @ 16 kHz, mean-normed
-        feat = feat.unsqueeze(0).cpu().numpy().astype(np.float32)   # (1, T, 80)
+        feat = feat[None].astype(np.float32)                        # (1, T, 80)
         out = self.session.run([self.output_name], {self.input_name: feat})[0]  # (1, 192)
         return out[0].astype(np.float32)
 
-    @torch.no_grad()
-    def embed_fbank(self, fbank: torch.Tensor) -> np.ndarray:
+    def embed_fbank(self, fbank) -> np.ndarray:
         """Precomputed (T, 80) mean-normed fbank → (192,) x-vector (skips audio I/O)."""
-        feat = torch.as_tensor(fbank, dtype=torch.float32).unsqueeze(0).cpu().numpy()
+        feat = _to_numpy(fbank)[None].astype(np.float32)
         out = self.session.run([self.output_name], {self.input_name: feat})[0]
         return out[0].astype(np.float32)
 

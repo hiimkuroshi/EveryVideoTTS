@@ -33,7 +33,7 @@ explicit = true
 
 [project]
 name = "vieneu"
-version = "3.2.5"
+version = "3.3.0"
 description = "Advanced on-device Vietnamese TTS with instant voice cloning"
 readme = "README_PYPI.md"
 license = { file = "LICENSE" }
@@ -68,11 +68,12 @@ requires-python = ">=3.10"
 # yourself — there is no [gpu] extra; see [project.optional-dependencies] below);
 # legacy backends (llama-cpp, lmdeploy, librosa, neucodec) live in the [legacy] extra.
 dependencies = [
-    "sea-g2p==0.8.4", # phonemizer (Rust, torch-free) — cần hàm punc_norm() (>=0.7.11)
+    "sea-g2p>=0.9.0", # phonemizer (Rust, torch-free) — cần hàm punc_norm() (>=0.7.11)
     "onnxruntime>=1.20.0", # runs the v3 transformers + MOSS codec
     "numpy",
     "soundfile", # audio I/O
     "soxr", # lightweight resampling for voice cloning
+    "kaldi-native-fbank>=1.20", # speaker-encoder fbank front-end (torch-free voice cloning)
     "tokenizers>=0.20", # phoneme tokenizer (torch-free)
     "huggingface_hub", # fetch ONNX / config / tokenizer / voices
     "PyYAML", # gradio config.yaml

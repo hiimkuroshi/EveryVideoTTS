@@ -163,7 +163,7 @@ for label, voice_id in voices:
 #     "Nếu thấy hữu ích, các bạn nhớ để lại một lượt thích và chia sẻ video này cho mọi người nhé!",
 # ] * 10   # 30 texts — enough to fill the batch and really show the GPU throughput win
 # t0 = time.time()
-# audios = vieneu.infer_batch(texts, voice="Minh Đức")
+# audios = vieneu.infer_batch(texts, voice="Adam")
 # elapsed = time.time() - t0
 # total_audio = sum(len(a) for a in audios) / 48_000
 # print(f"⚡ {len(texts)} texts | audio {total_audio:.1f}s | wall {elapsed:.1f}s | RTF {elapsed/total_audio:.3f}")
@@ -178,7 +178,7 @@ for label, voice_id in voices:
 ```python
 from vieneu import Vieneu
 vieneu = Vieneu(backend="onnx")                      # force ONNX/CPU — the streaming path (int8)
-for chunk in vieneu.infer_stream("Xin chào các bạn!", voice="Minh Đức"):
+for chunk in vieneu.infer_stream("Xin chào các bạn!", voice="Adam"):
     play(chunk)                                   # np.float32 @ 48 kHz — play/write as it arrives
 ```
 
@@ -190,11 +190,11 @@ uv run python -m apps.web_stream                  # → http://127.0.0.1:8001
 
 #### Available Voices
 
-The v3 Turbo engine includes **14 curated preset voices** covering **3 Vietnamese regions** (North, Central, South) with diverse genders and speaking characters:
+The v3 Turbo engine includes **20 curated preset voices** covering **3 regions** (North, Central, South) with diverse genders and speaking characters:
 
-- **Northern (Bắc)**: e.g. Minh Đức, Trúc Ly
+- **Northern (Bắc)**: e.g. Minh Đức, Phạm Tuyên, Trúc Ly, Mai Anh, Quỳnh Anh
 - **Central (Trung)**: Quang Sơn, Ngọc Trân
-- **Southern (Nam)**: e.g. Xuân Vĩnh
+- **Southern (Nam)**: e.g. Adam *(default)*, Xuân Vĩnh, Thái Sơn, Thùy Dung, Mỹ Duyên
 
 ### Reading style — **deprecated** ⚠️
 
@@ -210,10 +210,10 @@ The v3 Turbo engine includes **14 curated preset voices** covering **3 Vietnames
 
 ```python
 # Old code — still runs, but `style` is ignored
-audio = vieneu.infer("Bản tin sáng nay.", voice="Minh Đức", style="tin_tuc")
+audio = vieneu.infer("Bản tin sáng nay.", voice="Adam", style="tin_tuc")
 
 # New code — pick the reading character through the voice / reference clip instead
-audio = vieneu.infer("Bản tin sáng nay.", voice="Minh Đức")
+audio = vieneu.infer("Bản tin sáng nay.", voice="Adam")
 ```
 
 ### Emotion cues (experimental)
@@ -221,7 +221,7 @@ audio = vieneu.infer("Bản tin sáng nay.", voice="Minh Đức")
 Inline tags are supported anywhere in the text: `[cười]` (chuckle), `[thở dài]` (sigh), `[hắng giọng]` (clear throat).
 
 ```python
-audio = vieneu.infer("Nghe hay quá đi [cười]. Để mình nói tiếp [hắng giọng].", voice="Trúc Ly")
+audio = vieneu.infer("Nghe hay quá đi [cười]. Để mình nói tiếp [hắng giọng].", voice="Adam")
 ```
 
 ### Voice cloning
@@ -266,8 +266,9 @@ Get the denoised audio without synthesizing anything (e.g. to inspect or store i
 wav, sr = vieneu.denoise("noisy.wav", out_path="clean.wav")   # 44.1 kHz mono
 ```
 
-> **Note:** `denoise`, `add_voice`, and voice cloning currently require the PyTorch
-> (GPU) engine. Built-in voices work everywhere.
+> **Note:** `denoise`, `add_voice`, and voice cloning work on every backend — the
+> torch-free CPU/ONNX install included (the whole cloning pipeline runs on
+> onnxruntime + soxr + kaldi-native-fbank).
 
 ---
 
@@ -411,11 +412,11 @@ docker run --gpus all \
 
 ## 🌟 Star History
 
-<a href="https://www.star-history.com/?repos=pnnbao97%2FVieNeu-TTS&type=date&legend=top-left">
+<a href="https://github.com/pnnbao97/VieNeu-TTS/stargazers">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=pnnbao97/VieNeu-TTS&type=date&theme=dark&legend=top-left&sealed_token=_tsrXAlf4KfIavj2geHlH_hTI3Vt6YrjXHEaMwuo0iSbNTryaItVoXiSBw4rkyhZkoiSWWW0hopsrddCfpPZciHd5LO53sX8MaFFCcmE6fQC75nhf9wzR61_wpp7cFSxvW9jvlsUOfK4XLSVhPY_ZhKMdqJXboryhvjYulUuawE5jGkAUjQRSFKKl8GK" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=pnnbao97/VieNeu-TTS&type=date&legend=top-left&sealed_token=_tsrXAlf4KfIavj2geHlH_hTI3Vt6YrjXHEaMwuo0iSbNTryaItVoXiSBw4rkyhZkoiSWWW0hopsrddCfpPZciHd5LO53sX8MaFFCcmE6fQC75nhf9wzR61_wpp7cFSxvW9jvlsUOfK4XLSVhPY_ZhKMdqJXboryhvjYulUuawE5jGkAUjQRSFKKl8GK" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=pnnbao97/VieNeu-TTS&type=date&legend=top-left&sealed_token=_tsrXAlf4KfIavj2geHlH_hTI3Vt6YrjXHEaMwuo0iSbNTryaItVoXiSBw4rkyhZkoiSWWW0hopsrddCfpPZciHd5LO53sX8MaFFCcmE6fQC75nhf9wzR61_wpp7cFSxvW9jvlsUOfK4XLSVhPY_ZhKMdqJXboryhvjYulUuawE5jGkAUjQRSFKKl8GK" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/pnnbao97/star-charts/main/charts/pnnbao97/VieNeu-TTS/dark.svg" />
+   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/pnnbao97/star-charts/main/charts/pnnbao97/VieNeu-TTS/light.svg" />
+   <img alt="Star History Chart" src="https://raw.githubusercontent.com/pnnbao97/star-charts/main/charts/pnnbao97/VieNeu-TTS/light.svg" />
  </picture>
 </a>
 

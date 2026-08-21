@@ -1521,6 +1521,43 @@ wheels = [
 ]
 
 [[package]]
+name = "kaldi-native-fbank"
+version = "1.22.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3a/2c/84076b352107ce12d56f28c313f1aca1be332d953dd96aec7b84976e6d53/kaldi-native-fbank-1.22.3.tar.gz", hash = "sha256:387bf87225c6b83c93ae652eeaef1b4d531994b6e398e7a77189de340674f9af", size = 71013, upload-time = "2025-10-09T02:31:21.487Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dc/c1/ff7a8c85a100dbef0df6473579cb78b1527f01d34859432de3f38d5a38d1/kaldi_native_fbank-1.22.3-cp310-cp310-macosx_10_15_x86_64.whl", hash = "sha256:af04cae53beb6da1e28e57e053d16118513e5fbe8d16ce0b3261f1b1b396af0a", size = 244533, upload-time = "2025-10-09T02:28:39.795Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/d5/be771230ba2f071ad036a9224139fa4e0ac576b8abac15209342fc63ef86/kaldi_native_fbank-1.22.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:947cb8fae3611244b15006bd42263fe56afe583077e7006aac4bdb0e10dc5a4f", size = 227900, upload-time = "2025-10-09T02:33:05.679Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/9a/2ba3bcdf8b0d78339d3bb17307f70113d32bfc5492917d254995e61fd1c0/kaldi_native_fbank-1.22.3-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:f1e6b8c587dfe4f646b3a62f4b4ee840a83f4c491fe4bdfb74ccd9937ce17cdc", size = 296954, upload-time = "2025-10-09T02:30:26.143Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/09/9031a517a0655e54c5bb8f243078798c19441f037b70a3f10b8aad82d073/kaldi_native_fbank-1.22.3-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:c710b62442a43720db853cbafbf57ea3f920b593128dfb8fb88e08d6a8225772", size = 320031, upload-time = "2025-10-09T02:30:45.244Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/14/3f0d13909fee89d3826279a129bc3261c677fb1f39db1c4f714d92918762/kaldi_native_fbank-1.22.3-cp310-cp310-win32.whl", hash = "sha256:4d3c97ee08b9d3d528ff4fe8a20aeb7484eea06b2ccb7a3b5a7c86fa3b065b44", size = 272314, upload-time = "2025-10-09T02:30:24.4Z" },
+    { url = "https://files.pythonhosted.org/packages/94/dd/0be9a61d373449d9782dad3b259892720bdc90c553cf618cb45a1c6443c0/kaldi_native_fbank-1.22.3-cp310-cp310-win_amd64.whl", hash = "sha256:1eb9a3a9c87597872a48acc167de7321b4660bc3a10ed2f552c5f633015b1b61", size = 302723, upload-time = "2025-10-09T02:28:31.64Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/d0/07ab65d7c8389f56f8c772a55f8846a81c24d973abecfc0275c2c833f63e/kaldi_native_fbank-1.22.3-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:6b9ef5b6302ee45628a51a4484cb4f41006af02141508939c09ce36899fb3f41", size = 245879, upload-time = "2025-10-09T02:28:04.7Z" },
+    { url = "https://files.pythonhosted.org/packages/64/2b/3132083b930fa6411f14469f36c465b7d2fba29a8a3e121d8fd6baffc8ea/kaldi_native_fbank-1.22.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:29452f2900e771086e9022dde17a92d191217ab3e34ca7dc361bd9be53e94fb4", size = 229180, upload-time = "2025-10-09T02:29:35.356Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/53/720ffbe8b30de203570f397866334eb4c6364c9214699010f2086de911ff/kaldi_native_fbank-1.22.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:d48e5dd8e897bf4509be2c6eeb4bbab728eaaef1f214ae0510c96219c4253d17", size = 299054, upload-time = "2025-10-09T02:28:42.011Z" },
+    { url = "https://files.pythonhosted.org/packages/52/3f/beb161e4fdf6710938ccf18418c147d87ba8f102903d6c6e4eda25588e22/kaldi_native_fbank-1.22.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:ce84c65779c9eed6ec02699797a4ba1859451977537a993be3ea8167a210ec3e", size = 321921, upload-time = "2025-10-09T02:31:21.646Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/bb/ee42418b77dbfc5ff619857b8eb372af98a88d47c8ca8b9a2d3ca2936c96/kaldi_native_fbank-1.22.3-cp311-cp311-win32.whl", hash = "sha256:516bce595eb5e5899a91dfec1142bea56a2fa232e53425e9966785aee8cd024e", size = 273018, upload-time = "2025-10-09T02:30:31.979Z" },
+    { url = "https://files.pythonhosted.org/packages/40/68/da630b035cd343311168e5fe02c39fe7b192638717e3202de92ccf8ae18e/kaldi_native_fbank-1.22.3-cp311-cp311-win_amd64.whl", hash = "sha256:bd225d0624d45b533c1780094b3c59666276a6e9f20222943441212cdf301c9e", size = 303342, upload-time = "2025-10-09T02:28:17.429Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/de/fbdbfcc75fad9d9a6f9a250bc986f1002902581eaa47a5948f53a7f11851/kaldi_native_fbank-1.22.3-cp312-cp312-macosx_10_15_x86_64.whl", hash = "sha256:7f636ccdea28bd187f93b06a1e4b9275e42e43af9405b0684fc739e829299c4b", size = 249003, upload-time = "2025-10-09T02:29:48.509Z" },
+    { url = "https://files.pythonhosted.org/packages/77/64/e57ce185dda028b7b9af72cdfb16825bfa52183653945681e7cb8e7c2dfa/kaldi_native_fbank-1.22.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:abd31a8bfe1db62a7ddb0beee84f3a5de9bb559fcdd2b96ca0fb729c551b9412", size = 228933, upload-time = "2025-10-09T02:31:35.8Z" },
+    { url = "https://files.pythonhosted.org/packages/43/28/6f4fd8953c0b3f30de4526fd024095032abcdc25b6736c77a891687c604e/kaldi_native_fbank-1.22.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:f5a44b4a83cf9bf13d3f77858928068b06d3ec2238c27ff2e39393fbf7749c9f", size = 298887, upload-time = "2025-10-09T02:30:53.739Z" },
+    { url = "https://files.pythonhosted.org/packages/84/90/01ef7331c52b1eaf9916f3f7a535155aac2e9e2ddad12a141613d92758c7/kaldi_native_fbank-1.22.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:f16e74372fe9e20abb4183f98a8e2288d5ee4c48d04d94b6160311170e007661", size = 322002, upload-time = "2025-10-09T02:30:13.04Z" },
+    { url = "https://files.pythonhosted.org/packages/66/1c/fce142bd3aeadb1292360a90ceb91f923c8e12081c21576fe69917243c5f/kaldi_native_fbank-1.22.3-cp312-cp312-win32.whl", hash = "sha256:a90f51377569575fc0d1a66ef7e89a36102bfb6dcd1d15d6c4afb930ce726672", size = 273308, upload-time = "2025-10-09T02:29:59.931Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/8d/c0b0b6280edabad85d7e15093fad612c027e175fe4e0b960ce2f36485143/kaldi_native_fbank-1.22.3-cp312-cp312-win_amd64.whl", hash = "sha256:cbbeea19fe6d584c54e93fe6615a7185b10e0d78fdb6471f9e44596018437c38", size = 308023, upload-time = "2025-10-09T02:28:43.909Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/df/4110f685067946c8b2e59ed76cebdf51c979ae999d90f65208a9d1966cba/kaldi_native_fbank-1.22.3-cp313-cp313-macosx_10_15_x86_64.whl", hash = "sha256:78ca163686a4aa1693194d098aa79b517845d851aa6fd27d5b162c05e1012361", size = 249056, upload-time = "2025-10-09T02:28:02.202Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/74/ef21aabdd2f32539735e2ed4d3ea072112d4e3d30dfc2d17695f6d9df072/kaldi_native_fbank-1.22.3-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:3768ea99933aa25080cb820f93f7b612968633b9a4fa23bc8a7337e2137f3fbb", size = 229011, upload-time = "2025-10-09T02:31:50.593Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/72/adb11d27c545aca1db442da744ee430a6aae377a33574bfd2ec159dcf673/kaldi_native_fbank-1.22.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:f74b85948328ab4b4c88522f98a59f83dd5295443b08483e945c7de2c35e5dcc", size = 299276, upload-time = "2025-10-09T02:30:38.1Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/1e/496c7ae814b2a7f8f47d423dc33aae2cdfb1edf898e2faaf5c5b39b90363/kaldi_native_fbank-1.22.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:e3f9c6551ff5b6ae785dd15f819c3b2b7432d77bfb79ea8806748e2c7d900b5d", size = 322714, upload-time = "2025-10-09T02:30:32.698Z" },
+    { url = "https://files.pythonhosted.org/packages/75/47/3fcb52e0ef081efa40b4ca5c04f207509d31157f33f3ac314578d93794f9/kaldi_native_fbank-1.22.3-cp313-cp313-win32.whl", hash = "sha256:a63d5bd6b5bd5f7c0e0af886c12c3f686fbc62347f6b886fed2694ab2f0dbd14", size = 273293, upload-time = "2025-10-09T02:30:13.979Z" },
+    { url = "https://files.pythonhosted.org/packages/63/48/20bfa3f8d88605e2ec2c274c343dec1f112077e687440d64d3caa4b9136c/kaldi_native_fbank-1.22.3-cp313-cp313-win_amd64.whl", hash = "sha256:4fb769337c7d482166ada8ba041003e4a9de3a778dc970b6b5802a382e581724", size = 308032, upload-time = "2025-10-09T02:29:03.278Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/7e/d47f64d5332b2527e6b65490888d99793eb3280bca735d0b69348eaeb6a3/kaldi_native_fbank-1.22.3-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:2efa8368cdd46a32c37a28c4baaa508b0a294ab1ca2aefddd3e97f62cfebc27b", size = 249216, upload-time = "2025-10-09T02:28:22.008Z" },
+    { url = "https://files.pythonhosted.org/packages/78/9f/f98f72ba5a90a39675e82f2175dc5ec99a85892a88b9ccdd25f2dc916c82/kaldi_native_fbank-1.22.3-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:8f6086073ec658a23d22f8657b3ee8c6ba69d65be57324a7284209ac7424b5ac", size = 229289, upload-time = "2025-10-09T02:31:17.012Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/4b/1f3f17a7b601124df88112a1d1fcb543c8d908d6674f752f7d3322991770/kaldi_native_fbank-1.22.3-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:41fb506fde155d97aeef95dd6ceccc38c2c5dd4401f9b8fded9bacaf1bafef36", size = 300037, upload-time = "2025-10-09T02:30:10.203Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/6a/374ec4e1cf13e672f5acd8272116c1885c2a7f84be491fc652415fc6e870/kaldi_native_fbank-1.22.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:f1cc2b8eeec52a33868cf59bb95d40b335fa9cff7e15a6208e0e9b67b7fd7236", size = 322854, upload-time = "2025-10-09T02:31:26.003Z" },
+    { url = "https://files.pythonhosted.org/packages/63/2a/edd85a2292d2af28af68214a3bdd029ab8ce2e6bc5aaac77255aa57ce964/kaldi_native_fbank-1.22.3-cp314-cp314-win32.whl", hash = "sha256:d6387ab52b56e2978524590e11b24cf03419d9e9361965bc8d6ff34ff9e867da", size = 279733, upload-time = "2025-10-09T02:29:41.855Z" },
+]
+
+[[package]]
 name = "lazy-loader"
 version = "0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -4589,16 +4626,16 @@ wheels = [
 
 [[package]]
 name = "sea-g2p"
-version = "0.8.4"
+version = "0.9.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/86/3d/e883f09123bde2dbe18df3136524d161fa20340dbf7a44c6242cc2fcc02d/sea_g2p-0.8.4.tar.gz", hash = "sha256:1d251d739f7bd3b8ef583a09ba20e043f810849be26b63e22098f9c1ad2e4f69", size = 29817678, upload-time = "2026-08-08T04:11:03.595Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/78/18/9324ed64195d23a27e8b099d8025ac79c413b2ce691605e7302c6cb8f415/sea_g2p-0.9.0.tar.gz", hash = "sha256:c61e2efa55050d27b271044fb6809b24f9c7475e605cf496fdab0a8a46c5cf8f", size = 29830802, upload-time = "2026-08-18T08:28:27.86Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a9/c5/d4f23cefbd80c7dce8b1338daf0d9c921c3a28faf5e7a074e02845e73a94/sea_g2p-0.8.4-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d18de4b05344c99702e5d94d5c162d19b0884e47d128c5716f25f4371f538189", size = 27685529, upload-time = "2026-08-08T04:10:41.192Z" },
-    { url = "https://files.pythonhosted.org/packages/fc/8c/790e73da97487e66365b754a25b93bd2893e4fb4935bc007fd1926434f47/sea_g2p-0.8.4-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:67fa25ab687a3d818429e6bf6e0a1da0283f82f9c32f96cb47807c8cafecf893", size = 27743456, upload-time = "2026-08-08T04:10:45.088Z" },
-    { url = "https://files.pythonhosted.org/packages/d6/64/dbbaee7337f73fa1f18ab97501c8ebaca2181ddb501ee584a659021f8bab/sea_g2p-0.8.4-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2dfeaf33a0335bea5485fc0a014a58ae2e00ca28610c92acff7e2ca7b38dc009", size = 27964162, upload-time = "2026-08-08T04:10:48.755Z" },
-    { url = "https://files.pythonhosted.org/packages/d6/a0/c33a9bd7edfa433370a850345ff2f36e4512e0d61caebf74391135fcb7c6/sea_g2p-0.8.4-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:432ae4c71e717d129473ac50858b01e20b5771708d11279b970bd1ba46bcf6d8", size = 27863277, upload-time = "2026-08-08T04:10:52.612Z" },
-    { url = "https://files.pythonhosted.org/packages/b6/64/da5038fcb2f1a517025cb0c31221154a5421e3b2d1581e7d5e2a8db051cd/sea_g2p-0.8.4-cp310-abi3-win32.whl", hash = "sha256:1d01a2ea8edf1c572dfc13c50a102b8e01baad91e1f95f28ac9298e90e752ed9", size = 27433963, upload-time = "2026-08-08T04:10:56.204Z" },
-    { url = "https://files.pythonhosted.org/packages/9b/86/14f5e93eb14fe416f80f47864fd94acd5b26209ffab85be7ada37a9cbddb/sea_g2p-0.8.4-cp310-abi3-win_amd64.whl", hash = "sha256:4518447c2989328cba893b8e442b274efcea48c42918b4bccde7a532b4c8fe09", size = 27524100, upload-time = "2026-08-08T04:10:59.738Z" },
+    { url = "https://files.pythonhosted.org/packages/96/57/36cb086ca717e874fc9324e9413b5f056fd1a79d125e4bb705aeeb816553/sea_g2p-0.9.0-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:c22d167920ffc887d032ab0ca70477df1a35a20d07c2472ff30759c8acb0edd7", size = 27687259, upload-time = "2026-08-18T08:28:08.843Z" },
+    { url = "https://files.pythonhosted.org/packages/36/d5/57feb132834cef04ee0fbae1161793deeeeda104c5e55adee5ad585595d9/sea_g2p-0.9.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:3682d4d19aca0242450f90d33d00118b538791c87750bfde0d7c7231a86d403e", size = 27756537, upload-time = "2026-08-18T08:28:11.437Z" },
+    { url = "https://files.pythonhosted.org/packages/91/42/afa6c44b24c0263dfd473092ece7f3089c68bb74ee92527d097f9cfe0e36/sea_g2p-0.9.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b25c136d8207e34cd1ab60a943ef85d8515c123bc104c18f25be0f8d18b68bdf", size = 27971782, upload-time = "2026-08-18T08:28:13.99Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/23/ec98298ba0a1226df954b211ec6ca39d8e3fd67c738da2adaa8064d5944c/sea_g2p-0.9.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3595f04415992bb06eb8aaecbd032e920b59a5f038c7184a9c6c17f0da113d12", size = 27865083, upload-time = "2026-08-18T08:28:16.491Z" },
+    { url = "https://files.pythonhosted.org/packages/93/62/3de7a619e5671008aa9958df799afd94b3dd8052e890a0d55c66903b56d5/sea_g2p-0.9.0-cp310-abi3-win32.whl", hash = "sha256:e7d8c5249ec3bf1d5e5b19df5231ec664e9e42ed01ccaaf4d2a32b649e05508c", size = 27440519, upload-time = "2026-08-18T08:28:23.337Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/e9/db4c2698b01591536338cadc133c71f78162214f31a9d0a61f983653197c/sea_g2p-0.9.0-cp310-abi3-win_amd64.whl", hash = "sha256:a463f9b412c91f58de4d93d604cc2c849eb3709b7456710c3f6c53b391a87ee8", size = 27525566, upload-time = "2026-08-18T08:28:25.744Z" },
 ]
 
 [[package]]
@@ -5480,12 +5517,13 @@ wheels = [
 
 [[package]]
 name = "vieneu"
-version = "3.2.5"
+version = "3.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "gradio" },
     { name = "huggingface-hub", version = "0.36.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform == 'win32') or (python_full_version == '3.12.*' and sys_platform == 'win32') or (sys_platform != 'darwin' and sys_platform != 'win32')" },
     { name = "huggingface-hub", version = "1.13.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version == '3.11.*' and sys_platform == 'win32') or (python_full_version >= '3.13' and sys_platform == 'win32') or sys_platform == 'darwin'" },
+    { name = "kaldi-native-fbank" },
     { name = "librosa" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.3.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -5557,6 +5595,7 @@ requires-dist = [
     { name = "accelerate", marker = "sys_platform == 'darwin' and extra == 'legacy'" },
     { name = "gradio", specifier = ">=5.49.1" },
     { name = "huggingface-hub" },
+    { name = "kaldi-native-fbank", specifier = ">=1.20" },
     { name = "librosa", specifier = ">=0.11.0" },
     { name = "llama-cpp-python", marker = "sys_platform == 'darwin' and extra == 'legacy'", specifier = "==0.3.16", index = "https://abetlen.github.io/llama-cpp-python/whl/metal/" },
     { name = "llama-cpp-python", marker = "sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'legacy'", specifier = "==0.3.16", index = "https://pypi.org/simple" },
@@ -5571,7 +5610,7 @@ requires-dist = [
     { name = "perth", specifier = ">=0.2.0" },
     { name = "pymupdf", marker = "extra == 'pdf'", specifier = ">=1.25.0" },
     { name = "pyyaml" },
-    { name = "sea-g2p", specifier = "==0.8.4" },
+    { name = "sea-g2p", specifier = ">=0.9.0" },
     { name = "soundfile" },
     { name = "soxr" },
     { name = "tokenizers", specifier = ">=0.20" },

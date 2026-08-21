@@ -286,7 +286,9 @@ def normalize_to_chunks(
     return [punc_norm(c) for c in chunks]
 
 
-def normalize_to_chunks_v3(text: str, max_chars: int = 256) -> list[str]:
+def normalize_to_chunks_v3(
+    text: str, max_chars: int = 256, min_chunk_chars: int = 20
+) -> list[str]:
     """Chia chunk cho đường v3 GIỐNG HỆT v2-gpu: cắt theo độ dài TEXT ĐÃ normalize.
 
     Đường v3 trước đây cắt ở tầng PHONEME (``chunk_phonemes``), mà phoneme dài hơn
@@ -295,23 +297,62 @@ def normalize_to_chunks_v3(text: str, max_chars: int = 256) -> list[str]:
     THỜI giữ inline emotion cue (``[cười]``/``<|emotion_k|>`` -> ``<|emotion_k|>``)
     mà ``normalize_to_chunks`` thường sẽ nuốt mất (dấu ``[...]`` bị xoá khi normalize).
 
+    Chunk ngắn hơn ``min_chunk_chars`` được gộp vào chunk kề (xem
+    :func:`_merge_short_chunks`) — chunk 1-2 từ đứng riêng làm model AR dễ ảo giác.
+
     Trả về list TEXT chunk (mỗi chunk có thể chứa ``<|emotion_k|>``); caller
     phonemize từng chunk bằng :func:`phonemize_text_with_emotions`.
     """
-    from vieneu_utils.core_utils import pack_sentences_into_chunks
+    return normalize_to_chunks_v3_with_gaps(
+        text, max_chars=max_chars, min_chunk_chars=min_chunk_chars
+    )[0]
 
-    if not text:
-        return []
 
-    keep_cues = "[" in text or "<|emotion_" in text
-    chunks: list[str] = []
-    for sentences in _normalized_sentences_by_para(text, keep_cues=keep_cues):
-        chunks.extend(pack_sentences_into_chunks(sentences, max_chars=max_chars))
-    return [punc_norm(c) for c in chunks]
+_EMOTION_TOKEN_RE = re.compile(r"<\|emotion_\d+\|>")
+
+
+def _effective_len(chunk: str) -> int:
+    """Độ dài "đọc được" của chunk: emotion token chiếm ký tự nhưng không phải chữ."""
+    return len(_EMOTION_TOKEN_RE.sub("", chunk).strip())
+
+
+def _merge_short_chunks(
+    chunks: list[str], gaps: list[str], min_chars: int
+) -> tuple[list[str], list[str]]:
+    """Gộp chunk ngắn hơn ``min_chars`` vào chunk kề, cập nhật ``gaps`` tương ứng.
+
+    Chunk 1-2 từ (thường là dòng tiêu đề/thoại cụt sau khi tách theo newline) đứng
+    một mình làm model AR thiếu điều kiện text, stop token bắn trượt -> ảo giác.
+    Gộp ưu tiên: ranh giới KHÔNG phải ngắt đoạn trước, rồi hàng xóm ngắn hơn, rồi
+    bên phải (tiêu đề dính vào nội dung theo sau nghe tự nhiên hơn). Khi buộc phải
+    gộp xuyên ngắt đoạn, khoảng nghỉ ``para`` 0.35s của ranh giới đó nhường chỗ cho
+    ngắt câu do dấu chấm quyết định — đánh đổi có chủ đích để tránh ảo giác.
+
+    Chunk gộp có thể vượt ``max_chars`` tối đa ``min_chars + 1`` ký tự. Chunk đơn
+    độc (toàn văn bản quá ngắn) giữ nguyên — trần frame theo phoneme lo phần đó.
+    """
+    while len(chunks) > 1:
+        short = [i for i, c in enumerate(chunks) if _effective_len(c) < min_chars]
+        if not short:
+            break
+        i = min(short, key=lambda k: _effective_len(chunks[k]))
+        sides = []                                   # (ưu_tiên, side)
+        if i < len(chunks) - 1:
+            sides.append(((gaps[i] != "para", -len(chunks[i + 1])), "R"))
+        if i > 0:
+            sides.append(((gaps[i - 1] != "para", -len(chunks[i - 1])), "L"))
+        side = max(sides, key=lambda t: t[0])[1]     # hoà -> "R" (đứng trước)
+        if side == "R":
+            chunks[i] = chunks[i] + " " + chunks.pop(i + 1)
+            gaps.pop(i)
+        else:
+            chunks[i - 1] = chunks[i - 1] + " " + chunks.pop(i)
+            gaps.pop(i - 1)
+    return chunks, gaps
 
 
 def normalize_to_chunks_v3_with_gaps(
-    text: str, max_chars: int = 256
+    text: str, max_chars: int = 256, min_chunk_chars: int = 20
 ) -> tuple[list[str], list[str]]:
     """Như :func:`normalize_to_chunks_v3` nhưng trả kèm loại ranh giới GIỮA các
     chunk để ghép audio nghỉ dài/ngắn theo ngữ cảnh.
@@ -346,7 +387,9 @@ def normalize_to_chunks_v3_with_gaps(
 
     chunks = [punc_norm(c) for c in chunks]
     gaps = [g if g == "para" else _classify_gap(chunks[i]) for i, g in enumerate(gaps)]
-    return chunks, gaps
+    # Gộp SAU punc_norm: từng mảnh đã chốt dấu câu cuối nên text gộp giữ nguyên
+    # ngữ điệu ("Chương một. Nội dung..."); gap của các ranh giới còn lại không đổi.
+    return _merge_short_chunks(chunks, gaps, min_chunk_chars)
 
 
 def phonemize_to_chunks(

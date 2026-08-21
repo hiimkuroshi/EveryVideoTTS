@@ -970,7 +970,7 @@ def synthesize_speech(text: str, voice_choice: str, custom_audio, custom_text: s
                         reqs = [{"phonemes": v3_phs[j], "speaker_emb": v3_speaker_emb,
                                  "ref_codes": ref_codes, "use_ref_codes": True} for j in idxs]
                         for j, w in zip(idxs, tts._v3_batch_engine.generate_batch(
-                                reqs, temperature=temperature, max_new_frames=600)):
+                                reqs, temperature=temperature, max_new_frames=300)):
                             v3_wavs[j] = w
                     wav = join_audio_chunks(v3_wavs, sr=sr_v3, silence_ps=gaps_to_silence(v3_gaps))
                 else:
@@ -994,7 +994,7 @@ def synthesize_speech(text: str, voice_choice: str, custom_audio, custom_text: s
                         chunk_wav = tts.engine.infer(
                             phonemes=ph, speaker_emb=v3_speaker_emb, ref_codes=ref_codes,
                             use_ref_codes=True,
-                            temperature=temperature, max_new_frames=600)
+                            temperature=temperature, max_new_frames=300)
                         now = time.time()
                         chunk_durations.append(now - last_t)
                         last_t = now
@@ -1475,7 +1475,7 @@ def _synthesize_conversation_v3(lines, mapping, temperature, max_chars_chunk, si
         idxs = req_order[i:i + BS]
         yield None, f"⚡ v3 Turbo hội thoại: lô {bi + 1}/{total_batches} ({len(idxs)} đoạn, batch 32)..."
         for j, w in zip(idxs, tts._v3_batch_engine.generate_batch(
-                [reqs[k] for k in idxs], temperature=temperature, max_new_frames=600)):
+                [reqs[k] for k in idxs], temperature=temperature, max_new_frames=300)):
             wavs_flat[j] = w
 
     # Reassemble per turn (in order), then join turns with inter-turn silence.

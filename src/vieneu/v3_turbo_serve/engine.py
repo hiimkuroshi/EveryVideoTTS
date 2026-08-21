@@ -22,6 +22,7 @@ import torch
 
 from .batched_acoustic import generate_frame_batched
 from .batched_backbone import BatchedBackbone
+from .._v3_turbo_engine.rep_history import DEFAULT_REP_WINDOW, RepetitionHistory
 
 logger = logging.getLogger("Vieneu.V3TurboServe")
 
@@ -36,6 +37,13 @@ _MARKUP_RE = re.compile(r"<\|emotion_\d+\|>|</?en>")
 def _min_expected_frames(phonemes: str) -> int:
     eff_len = len(_MARKUP_RE.sub("", phonemes or ""))
     return max(3, math.ceil(MIN_FRAMES_PER_PHONE * eff_len))
+
+
+# Chặn-trên đối xứng: trần frame theo độ dài phoneme (24 + 2.0/ký tự, đo trên
+# dataset finetune — xem vieneu_utils.core_utils.max_expected_frames). Row ngắn
+# bắn trượt stop token thì bị cắt tại trần của CHÍNH row đó thay vì chạy hết
+# max_new_frames của cả batch.
+from vieneu_utils.core_utils import max_expected_frames
 
 
 class V3TurboBatchEngine:
@@ -81,9 +89,11 @@ class V3TurboBatchEngine:
         top_k: int = 25,
         top_p: float = 0.95,
         repetition_penalty: float = 1.2,
-        max_new_frames: int = 600,
+        repetition_window: int = DEFAULT_REP_WINDOW,
+        max_new_frames: int = 300,
         use_cudagraph: bool = False,
         max_retries: int = 2,
+        frame_cap: bool = True,
     ) -> List[np.ndarray]:
         """Generate a waveform for each request in one batched run.
 
@@ -95,6 +105,11 @@ class V3TurboBatchEngine:
         frames per phoneme char — an early-EOS "silent chunk") are regenerated as a
         smaller batch, up to ``max_retries`` times, keeping the longest attempt.
         Set ``max_retries=0`` to disable the guard.
+
+        ``frame_cap=True`` (default) additionally caps each row at its own
+        ``max_expected_frames(phonemes)`` — the upper-bound twin of the guard
+        above: a short row that misses its stop token gets truncated at a
+        length plausible for its text instead of babbling to ``max_new_frames``.
 
         ``use_cudagraph=True`` captures (and caches) a CUDA graph of the per-frame
         acoustic step for this batch size — big per-step speedup, reused across calls.
@@ -112,10 +127,13 @@ class V3TurboBatchEngine:
 
         sampling = dict(
             temperature=temperature, top_k=top_k, top_p=top_p,
-            repetition_penalty=repetition_penalty, max_new_frames=max_new_frames,
-            use_cudagraph=use_cudagraph,
+            repetition_penalty=repetition_penalty, repetition_window=repetition_window,
+            max_new_frames=max_new_frames, use_cudagraph=use_cudagraph,
         )
-        codes = self._generate_codes_batch(reqs, **sampling)
+        # Trần frame RIÊNG từng row (luôn > floor chặn-dưới nên không kích retry).
+        caps = ([min(max_new_frames, max_expected_frames(r["phonemes"])) for r in reqs]
+                if frame_cap else None)
+        codes = self._generate_codes_batch(reqs, frame_caps=caps, **sampling)
 
         # Guard: re-run rows whose output is too short for their text.
         floors = [_min_expected_frames(r["phonemes"]) for r in reqs]
@@ -126,7 +144,10 @@ class V3TurboBatchEngine:
             logger.warning(
                 f"⚠️ v3 Turbo batch: {len(bad)} chunk ngắn bất thường "
                 f"(rows {bad}) — đang sinh lại...")
-            retry = self._generate_codes_batch([reqs[i] for i in bad], **sampling)
+            retry = self._generate_codes_batch(
+                [reqs[i] for i in bad],
+                frame_caps=[caps[i] for i in bad] if caps is not None else None,
+                **sampling)
             for j, i in enumerate(bad):
                 if len(retry[j]) > len(codes[i]):
                     codes[i] = retry[j]
@@ -154,10 +175,16 @@ class V3TurboBatchEngine:
         top_k: int = 25,
         top_p: float = 0.95,
         repetition_penalty: float = 1.2,
-        max_new_frames: int = 600,
+        repetition_window: int = DEFAULT_REP_WINDOW,
+        max_new_frames: int = 300,
         use_cudagraph: bool = False,
+        frame_caps: Optional[List[int]] = None,
     ) -> List[torch.Tensor]:
-        """One batched generation pass; returns per-row codes ``(T, n_vq)`` (no decode)."""
+        """One batched generation pass; returns per-row codes ``(T, n_vq)`` (no decode).
+
+        ``frame_caps[b]`` (nếu có) là trần frame riêng của row ``b`` — chạm trần
+        thì row đó coi như xong (mask ra khỏi batch) dù chưa thấy EOS.
+        """
         cfg = self.config
         n_vq = cfg.n_vq
         eos_id = cfg.speech_generation_end_token_id
@@ -173,9 +200,9 @@ class V3TurboBatchEngine:
         spk_list = [self.tts._resolve_speaker_emb(r.get("speaker_emb")) for r in requests]
         batch_spk = torch.cat(spk_list, dim=0) if (spk_list and spk_list[0] is not None) else None
 
-        # Per-row, per-codebook history for the repetition penalty (matches the
-        # single-path decode_one_frame). None when the penalty is disabled.
-        history = ([[set() for _ in range(n_vq)] for _ in range(B)]
+        # Per-row, per-codebook sliding-window history for the repetition penalty
+        # (matches the single-path decode_one_frame). None when the penalty is disabled.
+        history = ([RepetitionHistory(n_vq, repetition_window) for _ in range(B)]
                    if not math.isclose(repetition_penalty, 1.0) else None)
         # CUDA graph bakes in a static step → incompatible with dynamic rep-penalty.
         use_graph = use_cudagraph and dev.type == "cuda" and math.isclose(repetition_penalty, 1.0)
@@ -197,7 +224,9 @@ class V3TurboBatchEngine:
             for b in range(B):
                 if not finished[b]:
                     codes_per_req[b].append(codes[b])   # include the EOS frame (matches single path)
-                    if bool(is_eos[b]):
+                    if bool(is_eos[b]) or (
+                        frame_caps is not None and len(codes_per_req[b]) >= frame_caps[b]
+                    ):
                         finished[b] = True
             if all(finished):
                 break

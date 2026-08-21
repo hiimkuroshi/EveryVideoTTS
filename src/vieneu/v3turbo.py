@@ -19,12 +19,25 @@ from typing import Any, Generator, List, Optional, Tuple, Union
 import numpy as np
 
 from .base import BaseVieneuTTS
+from ._v3_turbo_engine.rep_history import DEFAULT_REP_WINDOW
 from vieneu_utils.phonemize_text import (
     phonemize_text_with_emotions,
     normalize_to_chunks_v3,
     normalize_to_chunks_v3_with_gaps,
 )
-from vieneu_utils.core_utils import join_audio_chunks, gaps_to_silence
+from vieneu_utils.core_utils import join_audio_chunks, gaps_to_silence, max_expected_frames
+
+
+def _cap_frames(sampling: dict, cap: int) -> dict:
+    """Bản sao ``sampling`` với ``max_new_frames`` chặn trên bởi ``cap``.
+
+    Chặn phần "nói thêm" khi stop token bắn trượt trên chunk ngắn (xem
+    :func:`vieneu_utils.core_utils.max_expected_frames`); chunk dài không bị
+    ảnh hưởng vì cap luôn vượt ``max_new_frames`` mặc định.
+    """
+    out = dict(sampling)
+    out["max_new_frames"] = min(out.get("max_new_frames", 300), cap)
+    return out
 
 logger = logging.getLogger("Vieneu.V3Turbo")
 
@@ -382,7 +395,8 @@ class V3TurboVieNeuTTS(BaseVieneuTTS):
                 ph = phonemize_text_with_emotions(chunk)
                 wavs.append(self.engine.infer(
                     phonemes=ph, speaker_emb=speaker_emb, ref_codes=ref_codes,
-                    use_ref_codes=use_ref_codes, **sampling,
+                    use_ref_codes=use_ref_codes,
+                    **_cap_frames(sampling, max_expected_frames(ph)),
                 ))
             return wavs
 
@@ -396,7 +410,10 @@ class V3TurboVieNeuTTS(BaseVieneuTTS):
                 "speaker_emb": speaker_emb, "ref_codes": ref_codes,
                 "use_ref_codes": use_ref_codes,
             } for j in idxs]
-            for j, w in zip(idxs, engine.generate_batch(reqs, **sampling)):
+            # Trần chung cho cả group = trần của row dài nhất — group đã được
+            # bucket theo độ dài phoneme nên trần vẫn sát với từng row.
+            group_cap = max(max_expected_frames(phs[j]) for j in idxs)
+            for j, w in zip(idxs, engine.generate_batch(reqs, **_cap_frames(sampling, group_cap))):
                 wavs[j] = w
         return wavs
 
@@ -412,8 +429,9 @@ class V3TurboVieNeuTTS(BaseVieneuTTS):
         temperature: float = 0.8,
         top_k: int = 25,
         top_p: float = 0.95,
-        max_new_frames: int = 600,
+        max_new_frames: int = 300,
         repetition_penalty: float = 1.2,
+        repetition_window: int = DEFAULT_REP_WINDOW,
         max_chars: int = 256,
         silence_p: float = 0.15,
         crossfade_p: float = 0.0,
@@ -437,6 +455,7 @@ class V3TurboVieNeuTTS(BaseVieneuTTS):
         sampling = dict(
             temperature=temperature, top_k=top_k, top_p=top_p,
             max_new_frames=max_new_frames, repetition_penalty=repetition_penalty,
+            repetition_window=repetition_window,
         )
         # GPU gộp các chunk vào cùng forward; CPU/1-chunk chạy tuần tự (xem _infer_chunks).
         all_wavs = self._infer_chunks(
@@ -460,8 +479,9 @@ class V3TurboVieNeuTTS(BaseVieneuTTS):
         temperature: float = 0.8,
         top_k: int = 25,
         top_p: float = 0.95,
-        max_new_frames: int = 600,
+        max_new_frames: int = 300,
         repetition_penalty: float = 1.2,
+        repetition_window: int = DEFAULT_REP_WINDOW,
         max_chars: int = 256,
         apply_watermark: bool = True,
         **kwargs: Any,
@@ -474,12 +494,14 @@ class V3TurboVieNeuTTS(BaseVieneuTTS):
         stream_fn = getattr(self.engine, "infer_stream", None)
         for chunk in chunks:
             ph = phonemize_text_with_emotions(chunk)
+            chunk_frames_cap = min(max_new_frames, max_expected_frames(ph))
             if stream_fn is not None:
                 for sub in stream_fn(
                     phonemes=ph, speaker_emb=speaker_emb, ref_codes=ref_codes,
                     use_ref_codes=use_ref_codes,
                     temperature=temperature, top_k=top_k, top_p=top_p,
-                    max_new_frames=max_new_frames, repetition_penalty=repetition_penalty,
+                    max_new_frames=chunk_frames_cap, repetition_penalty=repetition_penalty,
+                    repetition_window=repetition_window,
                 ):
                     if sub is None or len(sub) == 0:
                         continue
@@ -489,7 +511,8 @@ class V3TurboVieNeuTTS(BaseVieneuTTS):
                     phonemes=ph, speaker_emb=speaker_emb, ref_codes=ref_codes,
                     use_ref_codes=use_ref_codes,
                     temperature=temperature, top_k=top_k, top_p=top_p,
-                    max_new_frames=max_new_frames, repetition_penalty=repetition_penalty,
+                    max_new_frames=chunk_frames_cap, repetition_penalty=repetition_penalty,
+                    repetition_window=repetition_window,
                 )
                 yield self._apply_watermark(wav) if apply_watermark else wav
 
@@ -504,8 +527,9 @@ class V3TurboVieNeuTTS(BaseVieneuTTS):
         temperature: float = 0.8,
         top_k: int = 25,
         top_p: float = 0.95,
-        max_new_frames: int = 600,
+        max_new_frames: int = 300,
         repetition_penalty: float = 1.2,
+        repetition_window: int = DEFAULT_REP_WINDOW,
         max_chars: int = 256,
         apply_watermark: bool = True,
         batch_size: Optional[int] = None,
@@ -527,6 +551,7 @@ class V3TurboVieNeuTTS(BaseVieneuTTS):
         sampling = dict(
             temperature=temperature, top_k=top_k, top_p=top_p,
             max_new_frames=max_new_frames, repetition_penalty=repetition_penalty,
+            repetition_window=repetition_window,
         )
 
         # Cắt chunk từng text, nhớ chunk thuộc text nào (owner) và gaps để join lại.

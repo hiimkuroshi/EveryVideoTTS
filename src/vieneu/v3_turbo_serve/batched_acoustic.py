@@ -64,7 +64,7 @@ def generate_frame_batched(
     top_k: int = 25,
     top_p: float = 0.95,
     repetition_penalty: float = 1.0,
-    history=None,   # optional list (len B) of list (len n_vq) of seen-code sets, updated in place
+    history=None,   # optional list (len B) of per-row RepetitionHistory (indexable by codebook), updated in place
 ):
     """Sample one audio frame for each of B sequences.
 

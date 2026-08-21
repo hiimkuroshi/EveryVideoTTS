@@ -192,8 +192,9 @@ class VieNeuV3TurboForTTS(PreTrainedModel):
         Args:
             global_hidden_step: backbone hidden state, shape ``(1, hidden_size)``.
             temperature, top_k, audio_top_p, repetition_penalty: sampling controls.
-            history_by_channel: optional per-codebook seen-token sets for the
-                repetition penalty.
+            history_by_channel: optional per-codebook sliding-window history
+                (``RepetitionHistory``) for the repetition penalty; only codes
+                from the recent window are penalised.
 
         Returns:
             ``(frame_codes, last_local_out)`` — the ``n_vq`` sampled codes and the

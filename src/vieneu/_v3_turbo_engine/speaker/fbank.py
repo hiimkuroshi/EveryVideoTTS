@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import torch
+import numpy as np
 
 from .audio_utils import extract_fbank, high_quality_resample
 
@@ -11,10 +11,10 @@ _SPEAKER_FBANK_DITHER = 0.0
 
 
 def extract_speaker_fbank(
-    waveform: torch.Tensor,
+    waveform,
     *,
     sample_rate: int,
-) -> torch.Tensor:
+) -> np.ndarray:
     feature_input = waveform
     if sample_rate != _SPEAKER_FBANK_SAMPLE_RATE:
         feature_input = high_quality_resample(
