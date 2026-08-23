@@ -287,8 +287,8 @@ def adjust_audio_speed(
             search_block = padded_x[search_start : search_end + win_size]
 
             if len(search_block) >= win_size and len(ref_seg) == win_size:
-                xcorr = signal.correlate(search_block, ref_seg, mode='valid', method='fft')
-                best_offset = np.argmax(xcorr)
+                xcorr = np.correlate(search_block, ref_seg, mode='valid')
+                best_offset = int(np.argmax(xcorr))
                 best_in = search_start + best_offset
             else:
                 best_in = target_in
@@ -377,6 +377,17 @@ def build_srt_audio_timeline(
     current_ms = int(lead_in_silence_s * 1000)
     subtitles_info: List[dict] = []
 
+    # Reusable small silence buffer (1 second = 48000 samples)
+    silence_buf_size = min(sample_rate, 48000)
+    zeros_1s = np.zeros(silence_buf_size, dtype=np.float32)
+
+    def _append_silence(samples_needed: int):
+        rem = samples_needed
+        while rem > 0:
+            chunk_n = min(rem, silence_buf_size)
+            timeline_chunks.append(zeros_1s[:chunk_n].copy())
+            rem -= chunk_n
+
     for i, item in enumerate(items):
         target_start_ms = item.start_ms
         target_end_ms = item.end_ms
@@ -388,7 +399,7 @@ def build_srt_audio_timeline(
                 silence_ms = target_start_ms - current_ms
                 silence_samples = int(silence_ms / 1000.0 * sample_rate)
                 if silence_samples > 0:
-                    timeline_chunks.append(np.zeros(silence_samples, dtype=np.float32))
+                    _append_silence(silence_samples)
                 current_ms = target_start_ms
             # If previous audio ran over target start, we cascade naturally (current_ms > target_start_ms)
         elif align_mode == "sequential":
@@ -399,12 +410,12 @@ def build_srt_audio_timeline(
                     gap_ms = target_start_ms - prev_end_ms
                     gap_samples = int(gap_ms / 1000.0 * sample_rate)
                     if gap_samples > 0:
-                        timeline_chunks.append(np.zeros(gap_samples, dtype=np.float32))
+                        _append_silence(gap_samples)
                         current_ms += gap_ms
             elif lead_in_silence_s > 0:
                 init_samples = int(lead_in_silence_s * sample_rate)
                 if init_samples > 0:
-                    timeline_chunks.append(np.zeros(init_samples, dtype=np.float32))
+                    _append_silence(init_samples)
 
         actual_start_ms = current_ms
 
@@ -470,7 +481,7 @@ def build_srt_audio_timeline(
             trailing_ms = last_end_ms - current_ms
             trailing_samples = int(trailing_ms / 1000.0 * sample_rate)
             if trailing_samples > 0:
-                timeline_chunks.append(np.zeros(trailing_samples, dtype=np.float32))
+                _append_silence(trailing_samples)
             current_ms = last_end_ms
 
     final_waveform = np.concatenate(timeline_chunks) if timeline_chunks else np.array([], dtype=np.float32)

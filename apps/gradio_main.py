@@ -1927,9 +1927,17 @@ def synthesize_srt_speech(
     yield None, f"🎬 Đang khởi tạo lồng tiếng ({len(items)} câu phụ đề)..."
     start_t = time.time()
 
-    timeline_chunks = []
-    current_ms = int(lead_in_s * 1000)
+    current_ms = int(lead_in_s * 1000) if lead_in_s else 0
     subtitles_info = []
+
+    # Temporary output WAV file
+    tmp_out = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+    tmp_path = tmp_out.name
+    tmp_out.close()
+
+    cleanup_gpu_memory()
+    import gc
+    gc.collect()
 
     try:
         # Check if we can use high-speed GPU batch engine (v3 Turbo on CUDA)
@@ -1937,222 +1945,237 @@ def synthesize_srt_speech(
         dev = getattr(getattr(tts, "engine", None), "device", None)
         is_cuda = dev is not None and getattr(dev, "type", None) == "cuda"
 
-        if is_v3 and is_cuda:
-            from collections import defaultdict
-            from vieneu_utils.core_utils import join_audio_chunks, gaps_to_silence
-            from vieneu_utils.phonemize_text import phonemize_text_with_emotions, normalize_to_chunks_v3_with_gaps
+        silence_buf_size = min(sr, 48000)
+        zeros_1s = np.zeros(silence_buf_size, dtype=np.float32)
 
-            voice_cache = {}
-            def _get_v3_voice(spk_name):
-                if ref_audio_path:
-                    if "custom" not in voice_cache:
-                        emb, rc = tts.encode_reference(ref_audio_path, denoise=denoise_audio)
-                        voice_cache["custom"] = (emb, rc)
-                    return voice_cache["custom"]
+        with sf.SoundFile(tmp_path, mode='w', samplerate=sr, channels=1, subtype='PCM_16') as sf_out:
+            def _write_silence_samples(n_samples: int):
+                rem = n_samples
+                while rem > 0:
+                    c_len = min(rem, silence_buf_size)
+                    sf_out.write(zeros_1s[:c_len])
+                    rem -= c_len
 
-                v_id = def_voice_id
-                if spk_name and spk_name.lower() in speaker_map:
-                    v_id = speaker_map[spk_name.lower()]
-                if v_id not in voice_cache:
-                    vd = tts.get_preset_voice(v_id)
-                    emb = vd.get('speaker_emb')
-                    rc = vd.get('codes')
+            if is_v3 and is_cuda:
+                from collections import defaultdict
+                from vieneu_utils.core_utils import join_audio_chunks, gaps_to_silence
+                from vieneu_utils.phonemize_text import phonemize_text_with_emotions, normalize_to_chunks_v3_with_gaps
+
+                voice_cache = {}
+                def _get_v3_voice(spk_name):
+                    if ref_audio_path:
+                        if "custom" not in voice_cache:
+                            emb, rc = tts.encode_reference(ref_audio_path, denoise=denoise_audio)
+                            voice_cache["custom"] = (emb, rc)
+                        return voice_cache["custom"]
+
+                    v_id = def_voice_id
+                    if spk_name and spk_name.lower() in speaker_map:
+                        v_id = speaker_map[spk_name.lower()]
+                    if v_id not in voice_cache:
+                        vd = tts.get_preset_voice(v_id)
+                        emb = vd.get('speaker_emb')
+                        rc = vd.get('codes')
+                        if 'torch' in sys.modules:
+                            import torch
+                            if isinstance(rc, torch.Tensor):
+                                rc = rc.cpu().numpy()
+                        voice_cache[v_id] = (np.asarray(emb, dtype=np.float32) if emb is not None else None,
+                                             np.asarray(rc) if rc is not None else None)
+                    return voice_cache[v_id]
+
+                reqs, req_item_idx = [], []
+                line_gaps = {}
+                for i, item in enumerate(items):
+                    spk_emb, ref_codes = _get_v3_voice(item.speaker)
+                    line_chunks, line_gaps[i] = normalize_to_chunks_v3_with_gaps(item.text, max_chars=max_chars_chunk)
+                    for chunk in line_chunks:
+                        reqs.append({
+                            "phonemes": phonemize_text_with_emotions(chunk),
+                            "speaker_emb": spk_emb,
+                            "ref_codes": ref_codes,
+                            "use_ref_codes": True
+                        })
+                        req_item_idx.append(i)
+
+                if not reqs:
+                    yield None, "❌ Không có nội dung phụ đề để tổng hợp."
+                    return
+
+                if getattr(tts, "_v3_batch_engine", None) is None:
+                    from vieneu.v3_turbo_serve import V3TurboBatchEngine
+                    tts._v3_batch_engine = V3TurboBatchEngine(tts.engine)
+
+                BS = 32
+                total_batches = (len(reqs) + BS - 1) // BS
+                req_order = sorted(range(len(reqs)), key=lambda k: len(reqs[k]["phonemes"]))
+                wavs_flat = [None] * len(reqs)
+
+                for bi, idx_start in enumerate(range(0, len(req_order), BS)):
+                    if _STOP_EVENT.is_set():
+                        yield None, "⏹️ Đã dừng lồng tiếng SRT."
+                        return
+                    idxs = req_order[idx_start:idx_start + BS]
+                    yield None, f"⚡ v3 Turbo siêu tốc (GPU RTX): Lô {bi + 1}/{total_batches} ({len(idxs)} đoạn, batch 32)..."
+                    for j, w in zip(idxs, tts._v3_batch_engine.generate_batch(
+                            [reqs[k] for k in idxs], temperature=temperature, max_new_frames=300)):
+                        wavs_flat[j] = w
+                    # Memory cleanup per batch
                     if 'torch' in sys.modules:
                         import torch
-                        if isinstance(rc, torch.Tensor):
-                            rc = rc.cpu().numpy()
-                    voice_cache[v_id] = (np.asarray(emb, dtype=np.float32) if emb is not None else None,
-                                         np.asarray(rc) if rc is not None else None)
-                return voice_cache[v_id]
+                        torch.cuda.empty_cache()
+                    gc.collect()
 
-            reqs, req_item_idx = [], []
-            line_gaps = {}
-            for i, item in enumerate(items):
-                spk_emb, ref_codes = _get_v3_voice(item.speaker)
-                line_chunks, line_gaps[i] = normalize_to_chunks_v3_with_gaps(item.text, max_chars=max_chars_chunk)
-                for chunk in line_chunks:
-                    reqs.append({
-                        "phonemes": phonemize_text_with_emotions(chunk),
-                        "speaker_emb": spk_emb,
-                        "ref_codes": ref_codes,
-                        "use_ref_codes": True
+                by_item = defaultdict(list)
+                for w, idx in zip(wavs_flat, req_item_idx):
+                    by_item[idx].append(w)
+
+                for i, item in enumerate(items):
+                    target_start_ms = item.start_ms
+                    target_end_ms = item.end_ms
+                    slot_duration_ms = item.duration_ms
+
+                    if align_mode == "sync":
+                        if target_start_ms > current_ms:
+                            silence_ms = target_start_ms - current_ms
+                            silence_samples = int(silence_ms / 1000.0 * sr)
+                            if silence_samples > 0:
+                                _write_silence_samples(silence_samples)
+                            current_ms = target_start_ms
+
+                    actual_start_ms = current_ms
+                    raw_item_wavs = by_item[i] if by_item[i] else [np.array([], dtype=np.float32)]
+                    item_wav = join_audio_chunks(raw_item_wavs, sr=sr, silence_ps=gaps_to_silence(line_gaps.get(i, []))) if raw_item_wavs else np.array([], dtype=np.float32)
+
+                    raw_duration_ms = int((len(item_wav) / sr) * 1000) if sr > 0 else 0
+                    applied_speed = 1.0
+                    if raw_duration_ms > 0 and slot_duration_ms > 0 and srt_speed_mode != "none":
+                        needed_speed = raw_duration_ms / slot_duration_ms
+                        max_speed_limit = float(srt_max_speed) if srt_max_speed else 2.0
+                        if srt_speed_mode == "auto_speed_up" and raw_duration_ms > slot_duration_ms:
+                            applied_speed = min(needed_speed, max_speed_limit)
+                        elif srt_speed_mode == "fit_exact":
+                            applied_speed = max(0.8, min(needed_speed, max_speed_limit))
+
+                        if abs(applied_speed - 1.0) > 0.02:
+                            item_wav = adjust_audio_speed(item_wav, applied_speed, sr)
+
+                    wav_len = len(item_wav)
+                    if wav_len > 0:
+                        sf_out.write(item_wav.astype(np.float32))
+
+                    actual_duration_ms = int((wav_len / sr) * 1000) if sr > 0 else 0
+                    current_ms += actual_duration_ms
+
+                    ratio = (actual_duration_ms / slot_duration_ms) if slot_duration_ms > 0 else 1.0
+                    subtitles_info.append({
+                        "index": item.index,
+                        "ratio": ratio,
+                        "applied_speed": applied_speed,
+                        "raw_duration_ms": raw_duration_ms,
+                        "actual_duration_ms": actual_duration_ms,
                     })
-                    req_item_idx.append(i)
 
-            if not reqs:
-                yield None, "❌ Không có nội dung phụ đề để tổng hợp."
-                return
+            else:
+                # Fallback for CPU / Sequential / Other backends
+                for i, item in enumerate(items):
+                    if _STOP_EVENT.is_set():
+                        yield None, "⏹️ Đã dừng lồng tiếng SRT."
+                        return
 
-            if getattr(tts, "_v3_batch_engine", None) is None:
-                from vieneu.v3_turbo_serve import V3TurboBatchEngine
-                tts._v3_batch_engine = V3TurboBatchEngine(tts.engine)
+                    target_start_ms = item.start_ms
+                    target_end_ms = item.end_ms
+                    slot_duration_ms = item.duration_ms
 
-            BS = 32
-            total_batches = (len(reqs) + BS - 1) // BS
-            req_order = sorted(range(len(reqs)), key=lambda k: len(reqs[k]["phonemes"]))
-            wavs_flat = [None] * len(reqs)
+                    if align_mode == "sync":
+                        if target_start_ms > current_ms:
+                            silence_ms = target_start_ms - current_ms
+                            silence_samples = int(silence_ms / 1000.0 * sr)
+                            if silence_samples > 0:
+                                _write_silence_samples(silence_samples)
+                            current_ms = target_start_ms
 
-            for bi, idx_start in enumerate(range(0, len(req_order), BS)):
-                if _STOP_EVENT.is_set():
-                    yield None, "⏹️ Đã dừng lồng tiếng SRT."
-                    return
-                idxs = req_order[idx_start:idx_start + BS]
-                yield None, f"⚡ v3 Turbo siêu tốc (GPU RTX): Lô {bi + 1}/{total_batches} ({len(idxs)} đoạn, batch 32)..."
-                for j, w in zip(idxs, tts._v3_batch_engine.generate_batch(
-                        [reqs[k] for k in idxs], temperature=temperature, max_new_frames=600)):
-                    wavs_flat[j] = w
+                    actual_start_ms = current_ms
 
-            by_item = defaultdict(list)
-            for w, idx in zip(wavs_flat, req_item_idx):
-                by_item[idx].append(w)
+                    # Resolve voice
+                    cur_voice = def_voice_id
+                    cur_ref = ref_audio_path
+                    if item.speaker and item.speaker.strip().lower() in speaker_map:
+                        cur_voice = speaker_map[item.speaker.strip().lower()]
+                        cur_ref = None
 
-            for i, item in enumerate(items):
-                target_start_ms = item.start_ms
-                target_end_ms = item.end_ms
-                slot_duration_ms = item.duration_ms
+                    spk_display = f"[{item.speaker}] " if item.speaker else ""
+                    yield None, f"⏳ [{i+1}/{len(items)}] {item.start_str} ➔ {item.end_str}: {spk_display}{item.text[:35]}..."
 
-                if align_mode == "sync":
-                    if target_start_ms > current_ms:
-                        silence_ms = target_start_ms - current_ms
-                        silence_samples = int(silence_ms / 1000.0 * sr)
-                        if silence_samples > 0:
-                            timeline_chunks.append(np.zeros(silence_samples, dtype=np.float32))
-                        current_ms = target_start_ms
+                    try:
+                        wav = tts.infer(
+                            item.text,
+                            voice=cur_voice,
+                            ref_audio=cur_ref,
+                            denoise=denoise_audio,
+                            temperature=temperature,
+                            max_chars=max_chars_chunk,
+                            apply_watermark=False
+                        )
+                    except Exception as e:
+                        print(f"❌ Lỗi câu SRT {i+1}: {e}")
+                        wav = np.array([], dtype=np.float32)
 
-                actual_start_ms = current_ms
-                raw_item_wavs = by_item[i] if by_item[i] else [np.array([], dtype=np.float32)]
-                item_wav = join_audio_chunks(raw_item_wavs, sr=sr, silence_ps=gaps_to_silence(line_gaps.get(i, []))) if raw_item_wavs else np.array([], dtype=np.float32)
+                    if wav is None or len(wav) == 0:
+                        wav = np.array([], dtype=np.float32)
 
-                raw_duration_ms = int((len(item_wav) / sr) * 1000) if sr > 0 else 0
-                applied_speed = 1.0
-                if raw_duration_ms > 0 and slot_duration_ms > 0 and srt_speed_mode != "none":
-                    needed_speed = raw_duration_ms / slot_duration_ms
-                    max_speed_limit = float(srt_max_speed) if srt_max_speed else 2.0
-                    if srt_speed_mode == "auto_speed_up" and raw_duration_ms > slot_duration_ms:
-                        applied_speed = min(needed_speed, max_speed_limit)
-                    elif srt_speed_mode == "fit_exact":
-                        applied_speed = max(0.8, min(needed_speed, max_speed_limit))
+                    original_wav_len = len(wav)
+                    raw_duration_ms = int((original_wav_len / sr) * 1000) if sr > 0 else 0
 
-                    if abs(applied_speed - 1.0) > 0.02:
-                        item_wav = adjust_audio_speed(item_wav, applied_speed, sr)
+                    # Auto Speed Matching / Time-Stretching
+                    applied_speed = 1.0
+                    if raw_duration_ms > 0 and slot_duration_ms > 0 and srt_speed_mode != "none":
+                        needed_speed = raw_duration_ms / slot_duration_ms
+                        max_speed_limit = float(srt_max_speed) if srt_max_speed else 2.0
+                        if srt_speed_mode == "auto_speed_up" and raw_duration_ms > slot_duration_ms:
+                            applied_speed = min(needed_speed, max_speed_limit)
+                        elif srt_speed_mode == "fit_exact":
+                            applied_speed = max(0.8, min(needed_speed, max_speed_limit))
 
-                actual_duration_ms = int((len(item_wav) / sr) * 1000) if sr > 0 else 0
-                timeline_chunks.append(item_wav)
-                current_ms += actual_duration_ms
+                        if abs(applied_speed - 1.0) > 0.02:
+                            wav = adjust_audio_speed(wav, applied_speed, sr)
 
-                ratio = (actual_duration_ms / slot_duration_ms) if slot_duration_ms > 0 else 1.0
-                subtitles_info.append({
-                    "index": item.index,
-                    "ratio": ratio,
-                    "applied_speed": applied_speed,
-                    "raw_duration_ms": raw_duration_ms,
-                    "actual_duration_ms": actual_duration_ms,
-                })
+                    wav_len = len(wav)
+                    if wav_len > 0:
+                        sf_out.write(wav.astype(np.float32))
 
-        else:
-            # Fallback for CPU / Sequential / Other backends
-            for i, item in enumerate(items):
-                if _STOP_EVENT.is_set():
-                    yield None, "⏹️ Đã dừng lồng tiếng SRT."
-                    return
+                    actual_duration_ms = int((wav_len / sr) * 1000) if sr > 0 else 0
+                    current_ms += actual_duration_ms
 
-                target_start_ms = item.start_ms
-                target_end_ms = item.end_ms
-                slot_duration_ms = item.duration_ms
+                    ratio = (actual_duration_ms / slot_duration_ms) if slot_duration_ms > 0 else 1.0
+                    subtitles_info.append({
+                        "index": item.index,
+                        "ratio": ratio,
+                        "applied_speed": applied_speed,
+                        "raw_duration_ms": raw_duration_ms,
+                        "actual_duration_ms": actual_duration_ms,
+                    })
 
-                if align_mode == "sync":
-                    if target_start_ms > current_ms:
-                        silence_ms = target_start_ms - current_ms
-                        silence_samples = int(silence_ms / 1000.0 * sr)
-                        if silence_samples > 0:
-                            timeline_chunks.append(np.zeros(silence_samples, dtype=np.float32))
-                        current_ms = target_start_ms
+            if align_mode == "sync" and items:
+                last_end_ms = items[-1].end_ms
+                if last_end_ms > current_ms:
+                    trailing_ms = last_end_ms - current_ms
+                    trailing_samples = int(trailing_ms / 1000.0 * sr)
+                    if trailing_samples > 0:
+                        _write_silence_samples(trailing_samples)
+                    current_ms = last_end_ms
 
-                actual_start_ms = current_ms
-
-                # Resolve voice
-                cur_voice = def_voice_id
-                cur_ref = ref_audio_path
-                if item.speaker and item.speaker.strip().lower() in speaker_map:
-                    cur_voice = speaker_map[item.speaker.strip().lower()]
-                    cur_ref = None
-
-                spk_display = f"[{item.speaker}] " if item.speaker else ""
-                yield None, f"⏳ [{i+1}/{len(items)}] {item.start_str} ➔ {item.end_str}: {spk_display}{item.text[:35]}..."
-
-                try:
-                    wav = tts.infer(
-                        item.text,
-                        voice=cur_voice,
-                        ref_audio=cur_ref,
-                        denoise=denoise_audio,
-                        temperature=temperature,
-                        max_chars=max_chars_chunk,
-                        apply_watermark=False
-                    )
-                except Exception as e:
-                    print(f"❌ Lỗi câu SRT {i+1}: {e}")
-                    wav = np.array([], dtype=np.float32)
-
-                if wav is None or len(wav) == 0:
-                    wav = np.array([], dtype=np.float32)
-
-                original_wav_len = len(wav)
-                raw_duration_ms = int((original_wav_len / sr) * 1000) if sr > 0 else 0
-
-                # Auto Speed Matching / Time-Stretching
-                applied_speed = 1.0
-                if raw_duration_ms > 0 and slot_duration_ms > 0 and srt_speed_mode != "none":
-                    needed_speed = raw_duration_ms / slot_duration_ms
-                    max_speed_limit = float(srt_max_speed) if srt_max_speed else 2.0
-                    if srt_speed_mode == "auto_speed_up" and raw_duration_ms > slot_duration_ms:
-                        applied_speed = min(needed_speed, max_speed_limit)
-                    elif srt_speed_mode == "fit_exact":
-                        applied_speed = max(0.8, min(needed_speed, max_speed_limit))
-
-                    if abs(applied_speed - 1.0) > 0.02:
-                        wav = adjust_audio_speed(wav, applied_speed, sr)
-
-                wav_len = len(wav)
-                actual_duration_ms = int((wav_len / sr) * 1000) if sr > 0 else 0
-                timeline_chunks.append(wav)
-                current_ms += actual_duration_ms
-
-                ratio = (actual_duration_ms / slot_duration_ms) if slot_duration_ms > 0 else 1.0
-                subtitles_info.append({
-                    "index": item.index,
-                    "ratio": ratio,
-                    "applied_speed": applied_speed,
-                    "raw_duration_ms": raw_duration_ms,
-                    "actual_duration_ms": actual_duration_ms,
-                })
-
-        if align_mode == "sync" and items:
-            last_end_ms = items[-1].end_ms
-            if last_end_ms > current_ms:
-                trailing_ms = last_end_ms - current_ms
-                trailing_samples = int(trailing_ms / 1000.0 * sr)
-                if trailing_samples > 0:
-                    timeline_chunks.append(np.zeros(trailing_samples, dtype=np.float32))
-
-        if not timeline_chunks:
+        if not subtitles_info:
             yield None, "❌ Không thể tạo được âm thanh nào từ file SRT!"
             return
 
-        yield None, "🪄 Đang ghép nối và xuất audio hoàn chỉnh..."
-        final_wav = np.concatenate(timeline_chunks)
-        if hasattr(tts, "_apply_watermark"):
-            final_wav = tts._apply_watermark(final_wav)
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-            sf.write(tmp.name, final_wav, sr)
-            elapsed = time.time() - start_t
-            total_audio_s = len(final_wav) / sr
-            speed_up_count = sum(1 for x in subtitles_info if x.get("applied_speed", 1.0) > 1.02)
-            speed_info_str = f" (⚡ Đã tự động tăng tốc {speed_up_count} câu để khớp timeline)" if speed_up_count > 0 else ""
-            over_count = sum(1 for x in subtitles_info if x["ratio"] > 1.25)
-            warning_sub = f" (⚠️ Có {over_count} câu vẫn dài hơn khung phụ đề)" if (over_count > 0 and speed_up_count == 0) else ""
-            yield tmp.name, f"✅ Hoàn tất lồng tiếng SRT! ({len(items)} câu, Audio: {total_audio_s:.1f}s, Xử lý trong {elapsed:.1f}s){speed_info_str}{warning_sub}"
+        elapsed = time.time() - start_t
+        total_audio_s = current_ms / 1000.0
+        speed_up_count = sum(1 for x in subtitles_info if x.get("applied_speed", 1.0) > 1.02)
+        speed_info_str = f" (⚡ Đã tự động tăng tốc {speed_up_count} câu để khớp timeline)" if speed_up_count > 0 else ""
+        over_count = sum(1 for x in subtitles_info if x["ratio"] > 1.25)
+        warning_sub = f" (⚠️ Có {over_count} câu vẫn dài hơn khung phụ đề)" if (over_count > 0 and speed_up_count == 0) else ""
+        yield tmp_path, f"✅ Hoàn tất lồng tiếng SRT! ({len(items)} câu, Audio: {total_audio_s:.1f}s, Xử lý trong {elapsed:.1f}s){speed_info_str}{warning_sub}"
 
     except Exception as e:
         import traceback
@@ -2160,6 +2183,7 @@ def synthesize_srt_speech(
         yield None, f"❌ Lỗi hệ thống khi lồng tiếng SRT: {str(e)}"
     finally:
         cleanup_gpu_memory()
+        gc.collect()
 
 
 def synthesize_srt_with_empty_estimate(*args):
