@@ -1,16 +1,16 @@
 @echo off
 chcp 65001 >nul
-title EveryVideoTTS Studio Launcher
+title EveryVideoTTS Studio - Fast Launcher
 cd /d "%~dp0"
 
 echo ===========================================================
-echo   🎬 EveryVideoTTS Studio - Fast Launcher
+echo   ⚡ EveryVideoTTS Studio - Fast Launcher
 echo   Tác giả: Tyr
 echo ===========================================================
 echo.
 echo [1/2] Đang khởi động trực tiếp từ môi trường Python (.venv)...
 
-:: Tự động mở trình duyệt sau 2 giây
+:: Tự động mở trình duyệt vào Web UI sau 2 giây
 start /b cmd /c "timeout /t 2 /nobreak >nul & start http://127.0.0.1:7860"
 
 echo [2/2] Web UI: http://127.0.0.1:7860
