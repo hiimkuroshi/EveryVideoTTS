@@ -52,6 +52,19 @@ from apps.ui_constants import (
     DEFAULT_TEXT_TURBO,
     DEFAULT_TEXT_V3
 )
+import datetime
+import random
+
+OUTPUT_VOICE_DIR = r"D:\AI\VieNeu\Voice"
+os.makedirs(OUTPUT_VOICE_DIR, exist_ok=True)
+
+def generate_output_filepath(prefix: str = "voice") -> str:
+    r"""Generate timestamped output filepath directly inside D:\AI\VieNeu\Voice."""
+    os.makedirs(OUTPUT_VOICE_DIR, exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    rand_suffix = f"{random.randint(100, 999)}"
+    filename = f"{prefix}_{timestamp}_{rand_suffix}.wav"
+    return os.path.join(OUTPUT_VOICE_DIR, filename)
 
 # --- CONSTANTS & CONFIG ---
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.yaml")
@@ -1018,12 +1031,11 @@ def synthesize_speech(text: str, voice_choice: str, custom_audio, custom_text: s
             if wav is None or len(wav) == 0:
                 yield None, "❌ Không sinh được audio nào."
                 return
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                sf.write(tmp.name, wav, sr_v3)
-                out_path_v3 = tmp.name
+            out_path_v3 = generate_output_filepath(prefix="single_v3")
+            sf.write(out_path_v3, wav, sr_v3)
             _dt = time.time() - _t0
             _spd = f", Tốc độ: {len(wav)/sr_v3/_dt:.2f}x realtime" if _dt > 0 else ""
-            yield out_path_v3, f"✅ Hoàn tất! (v3 Turbo, Thời gian: {_dt:.2f}s{_spd})"
+            yield out_path_v3, f"✅ Hoàn tất! (v3 Turbo, {_dt:.2f}s{_spd})\n📁 Đã lưu: {out_path_v3}"
             cleanup_gpu_memory()
             return
         # ========================== end v3 TURBO BRANCH ======================
@@ -1162,16 +1174,14 @@ def synthesize_speech(text: str, voice_choice: str, custom_audio, custom_text: s
             silence_p = 0.15 if not is_v2_turbo else 0.0 # Turbo adds silence internally
             final_wav = join_audio_chunks(all_wavs, sr=sr, silence_p=silence_p)
             
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                sf.write(tmp.name, final_wav, sr)
-                output_path = tmp.name
+            output_path = generate_output_filepath(prefix="single")
+            sf.write(output_path, final_wav, sr)
             
             process_time = time.time() - start_time
             backend_info = f" (Backend: {'LMDeploy 🚀' if using_lmdeploy else 'Standard 📦'})"
             speed_info = f", Tốc độ: {len(final_wav)/sr/process_time:.2f}x realtime" if process_time > 0 else ""
             
-            
-            yield output_path, f"✅ Hoàn tất! (Thời gian: {process_time:.2f}s{speed_info}){backend_info}"
+            yield output_path, f"✅ Hoàn tất! ({process_time:.2f}s{speed_info}){backend_info}\n📁 Đã lưu: {output_path}"
             
             # Cleanup memory
             if using_lmdeploy and hasattr(tts, 'cleanup_memory'):
@@ -1341,10 +1351,9 @@ def synthesize_speech(text: str, voice_choice: str, custom_audio, custom_text: s
         
         if full_audio_buffer:
             final_wav = np.concatenate(full_audio_buffer)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-                sf.write(tmp.name, final_wav, sr)
-                
-                yield tmp.name, f"✅ Hoàn tất Streaming! ({backend_info})"
+            output_path = generate_output_filepath(prefix="single_stream")
+            sf.write(output_path, final_wav, sr)
+            yield output_path, f"✅ Hoàn tất Streaming! ({backend_info})\n📁 Đã lưu: {output_path}"
             
             # Cleanup memory
             if using_lmdeploy and hasattr(tts, 'cleanup_memory'):
@@ -1430,9 +1439,9 @@ def _synthesize_conversation_v3(lines, mapping, temperature, max_chars_chunk, si
             return
         yield None, "🪄 Đang ghép nối âm thanh..."
         final_wav = np.concatenate(all_wavs)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-            sf.write(tmp.name, final_wav, sr)
-            yield tmp.name, f"✅ Hoàn tất hội thoại! ({len(lines)} câu, {time.time()-t0:.1f}s, CPU tuần tự)"
+        out_conv_path = generate_output_filepath(prefix="conv_cpu")
+        sf.write(out_conv_path, final_wav, sr)
+        yield out_conv_path, f"✅ Hoàn tất hội thoại! ({len(lines)} câu, {time.time()-t0:.1f}s, CPU tuần tự)\n📁 Đã lưu: {out_conv_path}"
         cleanup_gpu_memory()
         return
 
@@ -1498,10 +1507,10 @@ def _synthesize_conversation_v3(lines, mapping, temperature, max_chars_chunk, si
 
     yield None, "🪄 Đang ghép nối âm thanh..."
     final_wav = np.concatenate(all_wavs)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        sf.write(tmp.name, final_wav, sr)
-        elapsed = time.time() - t0
-        yield tmp.name, f"✅ Hoàn tất hội thoại! ({len(lines)} câu, {len(reqs)} đoạn, {elapsed:.1f}s, batch 32)"
+    out_conv_path = generate_output_filepath(prefix="conv_v3")
+    sf.write(out_conv_path, final_wav, sr)
+    elapsed = time.time() - t0
+    yield out_conv_path, f"✅ Hoàn tất hội thoại! ({len(lines)} câu, {len(reqs)} đoạn, {elapsed:.1f}s, batch 32)\n📁 Đã lưu: {out_conv_path}"
     cleanup_gpu_memory()
 
 
@@ -1674,11 +1683,10 @@ def synthesize_conversation(
         # 4. Merge and Output
         yield None, "🪄 Đang ghép nối âm thanh..."
         final_wav = np.concatenate(all_wavs)
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-            sf.write(tmp.name, final_wav, sr)
-            elapsed = time.time() - start_time
-            yield tmp.name, f"✅ Hoàn tất hội thoại! ({total_lines} câu, xử lý trong {elapsed:.1f}s)"
+        out_conv_path = generate_output_filepath(prefix="conv")
+        sf.write(out_conv_path, final_wav, sr)
+        elapsed = time.time() - start_time
+        yield out_conv_path, f"✅ Hoàn tất hội thoại! ({total_lines} câu, xử lý trong {elapsed:.1f}s)\n📁 Đã lưu: {out_conv_path}"
             
     except Exception as e:
         import traceback
@@ -1930,10 +1938,8 @@ def synthesize_srt_speech(
     current_ms = int(lead_in_s * 1000) if lead_in_s else 0
     subtitles_info = []
 
-    # Temporary output WAV file
-    tmp_out = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-    tmp_path = tmp_out.name
-    tmp_out.close()
+    # Direct output WAV file inside D:\AI\VieNeu\Voice
+    tmp_path = generate_output_filepath(prefix="srt")
 
     cleanup_gpu_memory()
     import gc
@@ -2175,7 +2181,7 @@ def synthesize_srt_speech(
         speed_info_str = f" (⚡ Đã tự động tăng tốc {speed_up_count} câu để khớp timeline)" if speed_up_count > 0 else ""
         over_count = sum(1 for x in subtitles_info if x["ratio"] > 1.25)
         warning_sub = f" (⚠️ Có {over_count} câu vẫn dài hơn khung phụ đề)" if (over_count > 0 and speed_up_count == 0) else ""
-        yield tmp_path, f"✅ Hoàn tất lồng tiếng SRT! ({len(items)} câu, Audio: {total_audio_s:.1f}s, Xử lý trong {elapsed:.1f}s){speed_info_str}{warning_sub}"
+        yield tmp_path, f"✅ Hoàn tất lồng tiếng SRT! ({len(items)} câu, Audio: {total_audio_s:.1f}s, Xử lý trong {elapsed:.1f}s){speed_info_str}{warning_sub}\n📁 Đã lưu: {tmp_path}"
 
     except Exception as e:
         import traceback
