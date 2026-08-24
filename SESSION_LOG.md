@@ -48,5 +48,43 @@
   - `tests/test_srt.py`: 10/10 unit test cases passed (0.627s).
 * **Trạng thái GitHub:** Đã commit và đồng bộ toàn bộ mã nguồn lên nhánh `main` của repository [EveryVideoTTS](https://github.com/hiimkuroshi/EveryVideoTTS).
 
+### 🔹 Session 2 (2026-08-21 ➔ 2026-08-24) - Nâng Cấp v3.3.0, Streaming SRT Memory-Safe & Fast Launcher
+* **Người thực hiện:** Tyr & Antigravity AI
+* **Mục tiêu phiên làm việc:**
+  1. Đồng bộ mã nguồn gốc cục bộ lên GitHub nhánh `main`.
+  2. Nâng cấp mã nguồn lên `v3.3.0` (tích hợp các cải tiến mới nhất từ bản gốc của Dr. Puma), tạo và cập nhật vào nhánh `1` trên GitHub.
+  3. Tạo file batch khởi động siêu tốc (~0.1s) chạy trực tiếp môi trường `.venv` không bị chậm bởi `uv`.
+  4. Khắc phục triệt để lỗi tràn bộ nhớ `_ArrayMemoryError: Unable to allocate 1.92 MiB` khi lồng tiếng phụ đề SRT dài.
+  5. Cấu hình hệ thống lưu trực tiếp các file audio sau khi generate vào thư mục `D:\AI\VieNeu\Voice`.
+
+* **Chi tiết thay đổi & Kết quả đạt được:**
+  * **1. Đồng bộ nhánh `main` lên GitHub:**
+    - Đẩy toàn bộ mã nguồn EveryVideoTTS ổn định lên nhánh `main` (Commit: `0304c49`).
+  * **2. Nâng cấp toàn diện lên `v3.3.0` trên Nhánh `1` (`git checkout -b 1`):**
+    - **Cắt chunk thông minh theo Từ Nối (v3.3.0):** Tự động nhận diện từ nối (*và, nhưng, hoặc, vì, nếu, khi, tuy nhiên...*) để ngắt nghỉ tự nhiên, bảo vệ cụm từ ghép.
+    - **Cửa sổ trượt phạt lặp từ (`rep_history.py`):** Giới hạn phạt lặp trong cửa sổ trượt ~2.5s, triệt tiêu méo giọng/trôi tông ở cuối câu dài.
+    - **Chống ảo giác cho câu thoại ngắn:** Tự động gộp chunk vụn (< 20 ký tự), khống chế trần frame động và khóa cứng 1 giây cho câu 1 từ.
+    - **Voice Cloning Torch-Free trên CPU:** Tích hợp `kaldi-native-fbank` + `soxr` thuần C++/NumPy để nhân bản giọng nói trực tiếp trên CPU.
+    - **Nâng cấp Thư viện & Bảo toàn Giọng mẫu:** Cập nhật `sea-g2p >= 0.9.0`, bảo toàn 100% 2 giọng mẫu độc quyền `Review 1` và `Review 2` (tổng 22 giọng preset v3 Turbo).
+    - **Bảo toàn 100% tính năng độc quyền:** Lồng tiếng SRT, Studio WSOLA, GPU Batched Engine x32 trên RTX 5070.
+  * **3. Bộ Khởi Động Siêu Tốc (`start_fast.bat`, `run_app.bat`, `start.bat`):**
+    - Khởi chạy trực tiếp từ `.venv\Scripts\python.exe -m apps.gradio_main`, loại bỏ thời gian quét lockfile của `uv`, khởi động trong ~0.1 giây.
+    - Tự động mở trình duyệt `http://127.0.0.1:7860` sau 2 giây.
+  * **4. Khắc Phục Lỗi Tràn RAM Khi Lồng Tiếng SRT (`apps/gradio_main.py`, `src/vieneu_utils/srt_utils.py`):**
+    - Chuyển đổi toàn bộ quá trình xuất audio sang cơ chế **Streaming trực tiếp ra SoundFile đĩa** (`sf.SoundFile`), ghi tuần tự các khối nhỏ (~192 KB buffer), loại bỏ `np.concatenate` trên hàng trăm mảng. Dung lượng RAM tiêu thụ cố định ở mức **< 5 MB**.
+    - Tối ưu hóa thuật toán WSOLA với `np.correlate` trực tiếp (Direct Dot-Product C), triệt tiêu FFT heap allocations.
+    - Tự động thu hồi bộ nhớ GPU/RAM (`torch.cuda.empty_cache()` + `gc.collect()`) sau mỗi batch.
+  * **5. Cấu hình Thư mục Lưu Trữ `D:\AI\VieNeu\Voice`:**
+    - Tất cả các chức năng (Đọc truyện, Hội thoại, Lồng tiếng SRT) tự động ghi file trực tiếp vào `D:\AI\VieNeu\Voice`.
+    - Quy ước đặt tên có timestamp: `single_v3_...wav`, `conv_v3_...wav`, `srt_...wav`.
+    - Hiển thị đường dẫn lưu file trực tiếp trên ô trạng thái giao diện.
+
+* **Trạng thái Kiểm thử:**
+  * `pytest`: Đạt **56/56** unit test cases passed hoàn toàn (`test_srt.py`, `test_rep_history.py`, `test_speaker_fbank.py`, `test_utils.py`).
+  * Web UI & GPU Engine: Hoạt động trơn tru 100%.
+* **Trạng thái GitHub:**
+  * Nhánh `main`: [https://github.com/hiimkuroshi/EveryVideoTTS/tree/main](https://github.com/hiimkuroshi/EveryVideoTTS/tree/main)
+  * Nhánh `1`: [https://github.com/hiimkuroshi/EveryVideoTTS/tree/1](https://github.com/hiimkuroshi/EveryVideoTTS/tree/1)
+
 ---
 *(Các phiên làm việc tiếp theo sẽ được tự động ghi nhận tại đây khi có lệnh "kết thúc".)*
