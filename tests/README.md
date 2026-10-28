@@ -1,6 +1,6 @@
-# VieNeu-TTS Testing Directory
+# EveryVideoTTS Testing Directory
 
-This directory contains test suites and utilities for verifying the VieNeu-TTS package.
+This directory contains test suites and utilities for verifying the EveryVideoTTS (`vieneu`) package.
 
 ## How to run tests
 

@@ -5,7 +5,8 @@
     "engine": "EveryVideoTTS",
     "author": "Tyr",
     "license": "CC BY-NC 4.0",
-    "homepage": "https://github.com/hiimkuroshi/EveryVideoTTS"
+    "homepage": "https://github.com/hiimkuroshi/EveryVideoTTS",
+    "notice": "Model and preset voices (except Review 1, Review 2): VieNeu-TTS by pnnbao-ump, CC BY-NC 4.0 - non-commercial use only, attribution required."
   },
   "default_voice": "Binh",
   "presets": {

@@ -1,0 +1,21 @@
+EveryVideoTTS
+Copyright 2026 Tyr (https://github.com/hiimkuroshi)
+https://github.com/hiimkuroshi/EveryVideoTTS
+
+This product is developed by Tyr on top of VieNeu-TTS
+(https://github.com/pnnbao97/VieNeu-TTS), which is licensed under the
+Apache License, Version 2.0. Files from that project have been modified.
+
+Work added in EveryVideoTTS includes the EveryVideoTTS Studio UI, SRT subtitle
+dubbing with timeline alignment, multi-speaker voice mapping, pitch-preserving
+WSOLA speed matching, GPU-batched SRT generation and the "Review 1" /
+"Review 2" preset voices.
+
+Model weights and preset voices downloaded at runtime from Hugging Face
+(pnnbao-ump/VieNeu-TTS*, pnnbao-ump/VieNeu-Codec) belong to their original
+author and are not covered by the Apache License of this repository. The
+upstream voice presets list them under CC BY-NC 4.0: non-commercial use only,
+attribution required.
+
+Third-party components: neucodec (Neuphonic), MOSS-Audio-Tokenizer-Nano
+(OpenMOSS Team) and sea-g2p, each under its own license.

@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     profiles: ["gpu"]
     image: ${IMAGE_NAME}:${IMAGE_TAG}
-    container_name: vieneu-tts-gpu
+    container_name: everyvideotts-gpu
     ports:
       - "${PORT}:7860"
     deploy:

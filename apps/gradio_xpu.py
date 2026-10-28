@@ -53,7 +53,7 @@ try:
 except ImportError:
     pass
 
-print("⏳ Đang khởi động VieNeu-TTS (Phiên bản tối ưu cho Intel XPU)...")
+print("⏳ Đang khởi động EveryVideoTTS Studio (Phiên bản tối ưu cho Intel XPU)...")
 
 
 # --- CONSTANTS & CONFIG ---
@@ -592,33 +592,23 @@ def synthesize_speech(text: str, voice_choice: str, custom_audio, custom_text: s
 
 synthesize_speech_with_estimate = wrap_with_estimate(synthesize_speech)
 
-with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS (XPU)", head=head_html) as demo:
+with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS (XPU)", head=head_html) as demo:
 
     with gr.Column(elem_classes="container"):
         gr.HTML("""
 <div class="header-box">
     <h1 class="header-title">
-        <span class="header-icon">🦜</span>
-        <span class="gradient-text">VieNeu-TTS Studio (Intel XPU Edition)</span>
+        <span class="header-icon">🎬</span>
+        <span class="gradient-text">EveryVideoTTS Studio (Intel XPU Edition)</span>
     </h1>
     <div class="model-card-content">
         <div class="model-card-item">
-            <strong>Models:</strong>
-            <a href="https://huggingface.co/pnnbao-ump/VieNeu-TTS" target="_blank" class="model-card-link">VieNeu-TTS</a>
-            <span>•</span>
-            <a href="https://huggingface.co/pnnbao-ump/VieNeu-TTS-0.3B" target="_blank" class="model-card-link">VieNeu-TTS-0.3B</a>
+            <strong>Tác giả:</strong>
+            <a href="https://github.com/hiimkuroshi" target="_blank" class="model-card-link">Tyr</a>
         </div>
         <div class="model-card-item">
             <strong>Repository:</strong>
-            <a href="https://github.com/pnnbao97/VieNeu-TTS" target="_blank" class="model-card-link">GitHub</a>
-        </div>
-        <div class="model-card-item">
-            <strong>Tác giả:</strong>
-            <a href="https://www.facebook.com/pnnbao97" target="_blank" class="model-card-link">Phạm Nguyễn Ngọc Bảo</a>
-        </div>
-        <div class="model-card-item">
-            <strong>Discord:</strong>
-            <a href="https://discord.gg/yJt8kzjzWZ" target="_blank" class="model-card-link">Tham gia cộng đồng</a>
+            <a href="https://github.com/hiimkuroshi/EveryVideoTTS" target="_blank" class="model-card-link">EveryVideoTTS</a>
         </div>
     </div>
 </div>
@@ -707,7 +697,7 @@ with gr.Blocks(theme=theme, css=css, title="VieNeu-TTS (XPU)", head=head_html) a
                         
                         gr.Markdown("""
                         **💡 Mẹo nhỏ:** Nếu kết quả Zero-shot Voice Cloning chưa như ý, bạn hãy cân nhắc **Finetune (LoRA)** để đạt chất lượng tốt nhất. 
-                        Hướng dẫn chi tiết có tại file: `finetune/README.md` hoặc xem trên [GitHub](https://github.com/pnnbao97/VieNeu-TTS/tree/main/finetune).
+                        Hướng dẫn chi tiết có tại file: `finetune/README.md` hoặc xem trên [GitHub](https://github.com/hiimkuroshi/EveryVideoTTS/tree/main/finetune).
                         """)              
                 
                 generation_mode = gr.Radio(
