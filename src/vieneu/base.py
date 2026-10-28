@@ -4,6 +4,7 @@ from typing import Optional, Union, List, Dict, Any, Tuple, Callable
 import json
 import numpy as np
 import logging
+import warnings
 from huggingface_hub import hf_hub_download
 # PuncNormalizer = sea_g2p.Normalizer luôn bật punc_norm=True (xem phonemize_text).
 from vieneu_utils.phonemize_text import PuncNormalizer as Normalizer
@@ -500,6 +501,26 @@ class BaseVieneuTTS(ABC):
             Tuple[np.ndarray, dict]: (final_waveform, statistics_and_timeline_info)
         """
         from vieneu_utils.srt_utils import parse_srt, build_srt_audio_timeline
+
+        # `default_voice` is not a parameter of infer_srt. Left in **kwargs it would be
+        # forwarded to infer(), where every backend silently drops it and falls back to the
+        # model's default preset. Warn, and honor it as `voice` when `voice` is unset.
+        if "default_voice" in kwargs:
+            legacy_voice = kwargs.pop("default_voice")
+            if voice is None:
+                warnings.warn(
+                    "infer_srt() has no 'default_voice' parameter; use voice=... instead. "
+                    "Treating default_voice as voice for this call.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                voice = legacy_voice
+            else:
+                warnings.warn(
+                    "infer_srt() got both voice= and default_voice=; default_voice is ignored.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
         items = parse_srt(srt_input)
         if not items:

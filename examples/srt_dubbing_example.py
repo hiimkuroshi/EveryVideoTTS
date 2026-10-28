@@ -1,5 +1,5 @@
 """
-Ví dụ sử dụng tính năng lồng tiếng phim từ phụ đề SRT với VieNeu-TTS.
+Ví dụ sử dụng tính năng lồng tiếng phim từ phụ đề SRT với EveryVideoTTS.
 Hỗ trợ cả giọng đọc đơn (single-speaker) và phân vai đa nhân vật (multi-speaker).
 """
 
@@ -31,16 +31,18 @@ def main():
     print("\n📦 Khởi tạo VieNeu-TTS v3 Turbo...")
     tts = Vieneu(mode="v3turbo", device="auto")
 
-    # Bản đồ gán giọng cho từng nhân vật (nếu có)
+    # Bản đồ gán giọng cho từng nhân vật (dùng tên preset v3 Turbo trong
+    # src/vieneu/assets/voices_v3_turbo.json, xem tts.list_preset_voices()).
+    # Câu không có tên nhân vật sẽ dùng giọng mặc định truyền qua `voice=`.
     speaker_mapping = {
-        "phương": "Ly",
-        "dũng": "Binh",
+        "Phương": "Trúc Ly",
+        "Dũng": "Xuân Vĩnh",
     }
 
     print("\n🎬 Bắt đầu lồng tiếng phụ đề SRT (Strict Timeline Sync + Auto Speed Matching)...")
     audio, stats = tts.infer_srt(
         srt_input=srt_file_path,
-        default_voice="Ly",
+        voice="Minh Đức",
         speaker_map=speaker_mapping,
         align_mode="sync",
         speed_mode="auto_speed_up",  # Tự động tăng tốc câu dài để khớp timeline

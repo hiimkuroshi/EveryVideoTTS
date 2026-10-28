@@ -1,4 +1,4 @@
-# 🦜 Hướng dẫn Fine-tune VieNeu-TTS (LoRA)
+# 🦜 Hướng dẫn Fine-tune model VieNeu-TTS (LoRA) trong EveryVideoTTS
 
 Thư mục này chứa toàn bộ công cụ cần thiết để bạn huấn luyện (fine-tune) mô hình VieNeu-TTS với giọng nói của riêng mình bằng phương pháp **LoRA (Low-Rank Adaptation)**.
 
@@ -7,8 +7,8 @@ Thư mục này chứa toàn bộ công cụ cần thiết để bạn huấn lu
 Nếu bạn chưa có sẵn mã nguồn, hãy thực hiện cài đặt môi trường:
 
 ```bash
-git clone https://github.com/pnnbao97/VieNeu-TTS.git
-cd VieNeu-TTS
+git clone https://github.com/hiimkuroshi/EveryVideoTTS.git
+cd EveryVideoTTS
 uv sync
 ```
 
@@ -18,7 +18,7 @@ uv sync
 
 ### 1. Chuẩn bị dữ liệu (`dataset/`)
 Bạn cần chuẩn bị:
-- Thư mục `finetune/dataset/raw_audio/`: Chứa các file âm thanh (.wav) của người nói. Độ dài mỗi file nên trong khoảng từ 3-15 giây để chất lượng finetune đạt tối đa. Theo kinh nghiệm của chúng tôi, tổng thời lượng nên trong khoảng từ 2-4 giờ để model có thể học hết các đặc điểm của giọng mẫu.
+- Thư mục `finetune/dataset/raw_audio/`: Chứa các file âm thanh (.wav) của người nói. Độ dài mỗi file nên trong khoảng từ 3-15 giây để chất lượng finetune đạt tối đa. Khuyến nghị tổng thời lượng nên trong khoảng từ 2-4 giờ để model có thể học hết các đặc điểm của giọng mẫu.
 - File `finetune/dataset/metadata.csv`: Chứa thông tin văn bản tương ứng với audio. Định dạng: `file_name|text` (ví dụ: `audio_001.wav|Xin chào Việt Nam.`).
 
 *Mẹo: Nếu chưa có dữ liệu, bạn có thể chạy `uv run python finetune/data_scripts/get_hf_sample.py` để tải dữ liệu mẫu.*
@@ -54,7 +54,7 @@ Mô hình sẽ được lưu định kỳ vào thư mục `finetune/output/`.
 ---
 
 ## 📓 Sử dụng Notebook (Khuyên dùng)
-Nếu bạn không quen sử dụng script console, chúng tôi cung cấp file Notebook `finetune_VieNeu-TTS.ipynb`. File này đã tích hợp sẵn mọi bước từ chuẩn bị đến huấn luyện, cực kỳ dễ theo dõi trên Google Colab hoặc máy cục bộ.
+Nếu bạn không quen sử dụng script console, repo có sẵn file Notebook `finetune_VieNeu-TTS.ipynb`. File này đã tích hợp sẵn mọi bước từ chuẩn bị đến huấn luyện, cực kỳ dễ theo dõi trên Google Colab hoặc máy cục bộ.
 
 ---
 

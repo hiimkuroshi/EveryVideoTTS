@@ -1,7 +1,7 @@
 """
-VieNeu-TTS SDK Example: Standard Mode (Local Inference)
+EveryVideoTTS SDK Example: Standard Mode (Local Inference)
 
-This example demonstrates how to run VieNeu-TTS locally on your machine.
+This example demonstrates how to run EveryVideoTTS (VieNeu-TTS models) locally on your machine.
 Ideal for offline apps, local development, or private deployments.
 """
 

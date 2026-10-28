@@ -111,7 +111,7 @@ class FastVieNeuTTS(BaseVieneuTTS):
                 "No valid speech tokens found in the output. "
                 "Lỗi này có thể do GPU của bạn không hỗ trợ định dạng bfloat16 (ví dụ: dòng T4, RTX 20-series) "
                 "dẫn đến sai số khi tính toán. Bạn hãy thử chuyển sang dùng phiên bản VieNeu-TTS-0.3B nếu vẫn muốn dùng LmDeploy hoặc "
-                "bỏ chọn 'LMDeploy' trong Tùy chọn nâng cao. Nếu vẫn gặp lỗi này, hãy thông báo với chúng tôi tại: https://discord.com/invite/yJt8kzjzWZ"
+                "bỏ chọn 'LMDeploy' trong Tùy chọn nâng cao. Nếu vẫn gặp lỗi này, hãy báo lỗi tại: https://github.com/hiimkuroshi/EveryVideoTTS/issues"
             )
 
         if self._is_onnx_codec:

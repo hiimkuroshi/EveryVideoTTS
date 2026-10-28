@@ -1,6 +1,6 @@
 """
-SRT (Subtitle) Parsing and Audio Timeline Alignment Utility for VieNeu-TTS.
-===========================================================================
+SRT (Subtitle) Parsing and Audio Timeline Alignment Utility for EveryVideoTTS.
+=============================================================================
 Pure Python implementation with no external subtitle parser dependency.
 Supports:
 - Timestamp parsing (HH:MM:SS,mmm and HH:MM:SS.mmm).

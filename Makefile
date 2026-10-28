@@ -130,11 +130,14 @@ docker-gpu:
 	docker compose -f docker/docker-compose.yml --profile gpu up
 
 # --- Docker Serve (Remote Mode) ---
+# Override when pushing to your own registry: make docker-push-serve SERVE_IMAGE=<user>/everyvideotts:serve
+SERVE_IMAGE ?= everyvideotts:serve
+
 docker-build-serve:
-	docker build -t pnnbao/vieneu-tts:serve -f docker/Dockerfile.serve .
+	docker build -t $(SERVE_IMAGE) -f docker/Dockerfile.serve .
 
 docker-push-serve:
-	docker push pnnbao/vieneu-tts:serve
+	docker push $(SERVE_IMAGE)
 
 # --- Environment/version checks ---
 check:

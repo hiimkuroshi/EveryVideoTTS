@@ -1,4 +1,4 @@
-# 🐳 Hướng Dẫn Deploy VieNeu-TTS với Docker
+# 🐳 Hướng Dẫn Deploy EveryVideoTTS với Docker
 
 ## 📋 Mục lục
 
@@ -66,10 +66,10 @@ Môi trường Production sử dụng `docker/docker-compose.prod.yml`. Code sou
 
 ### 1. Build Docker Image
 
-Copy `.env.example` ra `.env` và đặt tên image của bạn (VD: `myregistry.com/vieneu-tts-gpu`):
+Copy `.env.example` ra `.env` và đặt tên image của bạn (VD: `myregistry.com/everyvideotts-gpu`):
 
 ```bash
-IMAGE_NAME=myregistry.com/vieneu-tts-gpu
+IMAGE_NAME=myregistry.com/everyvideotts-gpu
 IMAGE_TAG=v1.0.0
 ```
 
