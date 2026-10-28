@@ -191,12 +191,79 @@ Dũng: Tạm biệt
 """
         wav, stats = tts.infer_srt(
             srt_input=srt_text,
-            default_voice="Ly",
+            voice="Ly",
             speaker_map={"phương": "Ly", "dũng": "Binh"},
             speed_mode="auto_speed_up"
         )
         self.assertEqual(stats["total_items"], 2)
         self.assertTrue(len(wav) > 0)
+
+    def test_infer_srt_default_voice_kwarg_warns_and_is_honored(self):
+        from vieneu.base import BaseVieneuTTS
+
+        class RecordingTTS(BaseVieneuTTS):
+            def __init__(self):
+                self.sample_rate = 24000
+                self.watermarker = None
+                self.calls = []
+
+            def infer(self, text, voice=None, **kwargs):
+                self.calls.append((voice, "default_voice" in kwargs))
+                return np.zeros(100, dtype=np.float32)
+
+            def infer_batch(self, texts, **kwargs):
+                return [np.zeros(100, dtype=np.float32) for _ in texts]
+
+        srt_text = """1
+00:00:01,000 --> 00:00:02,000
+Xin chào
+"""
+        # default_voice alone: warn, then use it as the default voice.
+        tts = RecordingTTS()
+        with self.assertWarnsRegex(UserWarning, "use voice="):
+            tts.infer_srt(srt_input=srt_text, default_voice="A")
+        self.assertEqual(tts.calls, [("A", False)])
+
+        # voice wins when both are given; default_voice never reaches infer().
+        tts = RecordingTTS()
+        with self.assertWarnsRegex(UserWarning, "default_voice is ignored"):
+            tts.infer_srt(srt_input=srt_text, voice="B", default_voice="A")
+        self.assertEqual(tts.calls, [("B", False)])
+
+    def test_srt_example_voices_resolve_on_v3turbo(self):
+        """examples/srt_dubbing_example.py: narrator + mapped speakers pick the intended v3 presets."""
+        from pathlib import Path
+
+        from vieneu.v3turbo import V3TurboVieNeuTTS
+
+        # Load the bundled v3 presets and use the real voice resolution, without the model.
+        tts = V3TurboVieNeuTTS.__new__(V3TurboVieNeuTTS)
+        tts.default_style = "tu_nhien"
+        tts._preset_voices, tts._default_voice = {}, None
+        tts._load_v3_voices()
+        tts.sample_rate = 48000
+        tts.watermarker = None
+
+        used = []
+
+        def fake_infer(text, voice=None, ref_audio=None, apply_watermark=True, **kwargs):
+            emb, _ = tts._resolve_ref(voice, ref_audio, True, True)
+            used.append(next(n for n, v in tts._preset_voices.items() if v["speaker_emb"] is emb))
+            return np.zeros(480, dtype=np.float32)
+
+        tts.infer = fake_infer
+        sample_srt = Path(__file__).resolve().parent.parent / "examples" / "sample.srt"
+        tts.infer_srt(
+            srt_input=sample_srt,
+            voice="Minh Đức",
+            speaker_map={"Phương": "Trúc Ly", "Dũng": "Xuân Vĩnh"},
+        )
+        self.assertEqual(used, ["Minh Đức", "Trúc Ly", "Xuân Vĩnh", "Trúc Ly"])
+
+        # v2 preset IDs are not v3 Turbo voices and must fail loudly, not fall back.
+        used.clear()
+        with self.assertRaisesRegex(ValueError, "Voice 'Ly' not found"):
+            tts.infer_srt(srt_input=sample_srt, voice="Ly")
 
     def test_adjust_audio_speed(self):
         from vieneu_utils.srt_utils import adjust_audio_speed
