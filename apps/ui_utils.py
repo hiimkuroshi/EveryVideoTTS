@@ -1,3 +1,4 @@
+import re
 import time
 import gc
 import sys
@@ -36,62 +37,78 @@ def _split_estimate_status(status: str) -> tuple[str, str]:
 
     return status, ""
 
-def _extract_progress(status: str) -> tuple[str, int, int] | None:
+_PROGRESS_DONE = re.compile(r"Đã xong\s+(\d+)\s*/\s*(\d+)")
+_PROGRESS_BRACKET = re.compile(r"\[(\d+)\s*/\s*(\d+)\]")
+_PROGRESS_UNIT = re.compile(r"\b(lô|batch|đoạn)\s+(\d+)\s*/\s*(\d+)", re.IGNORECASE)
+_UNIT_LABELS = {"lô": "Lô", "batch": "Lô", "đoạn": "Đoạn"}
+
+
+def extract_job_progress(status: str) -> dict | None:
+    """Read "how far along" from any backend status line.
+
+    Understands "Đã xong 2/5", "[3/12] …" (line i of n), and "lô/batch/đoạn i/n".
+    Returns {"done", "total", "label"}; "done" counts finished units, so a line
+    that says "đang xử lý đoạn 3/5" means 2 are done.
+    """
     if not isinstance(status, str):
         return None
-
-    for marker, label in (("Đang xử lý batch ", "batch"), ("Đang xử lý đoạn ", "đoạn")):
-        if marker not in status:
-            continue
-
-        progress_text = status.split(marker, 1)[1].split(" ", 1)[0].strip(".")
-        if "/" not in progress_text:
-            return None
-
-        current_text, total_text = progress_text.split("/", 1)
-        try:
-            current = int(current_text)
-            total = int(total_text)
-        except ValueError:
-            return None
-
-        if current > 0 and total > 0:
-            return label, current, total
-
+    m = _PROGRESS_DONE.search(status)
+    if m:
+        done, total = int(m.group(1)), int(m.group(2))
+        nxt = min(done + 1, total)
+        return {"done": done, "total": total, "label": f"Đoạn {nxt}/{total}"} if total else None
+    m = _PROGRESS_BRACKET.search(status)
+    if m:
+        cur, total = int(m.group(1)), int(m.group(2))
+        return {"done": cur - 1, "total": total, "label": f"Câu {cur}/{total}"} if total else None
+    m = _PROGRESS_UNIT.search(status)
+    if m:
+        unit = _UNIT_LABELS.get(m.group(1).lower(), m.group(1).capitalize())
+        cur, total = int(m.group(2)), int(m.group(3))
+        return {"done": cur - 1, "total": total, "label": f"{unit} {cur}/{total}"} if total else None
     return None
 
-def wrap_with_estimate(synthesize_fn):
+
+def stream_with_status(synthesize_fn):
+    """Adapt a (audio, status_text) generator to (audio_update, status_html) for the UI.
+
+    Adds a progress bar and a time-remaining estimate measured from how fast
+    units (lines, chunks, batches) finish. The audio player stays hidden until
+    there is something to play.
+    """
+    from apps.ui_components import render_status
+
     def wrapper(*args):
-        previous_progress_time = None
-        total_unit_duration = 0.0
-        completed_units = 0
+        first_t = first_done = None
+        last_done = None
+        for audio, status in synthesize_fn(*args):
+            status_text, embedded_eta = _split_estimate_status(status)
+            progress = extract_job_progress(status_text)
+            eta = ""
+            m = re.search(r"ước tính còn lại:\s*([^)\n]+)", status_text or "", re.IGNORECASE)
+            if embedded_eta:
+                eta = embedded_eta
+            elif m:
+                eta = f"Còn khoảng {m.group(1).strip().rstrip('.')}"
+            elif progress:
+                now = time.time()
+                if first_t is None or (last_done is not None and progress["done"] < last_done):
+                    first_t, first_done = now, progress["done"]
+                last_done = progress["done"]
+                finished = progress["done"] - first_done
+                if finished > 0:
+                    per_unit = (now - first_t) / finished
+                    remaining = per_unit * max(0, progress["total"] - progress["done"])
+                    eta = f"Còn khoảng {_format_duration(remaining)}"
+                else:
+                    eta = "Đang ước tính thời gian…"
+            if isinstance(eta, str) and eta.startswith("Ước tính còn lại: "):
+                eta = "Còn khoảng " + eta[len("Ước tính còn lại: "):]
+            has_audio = audio is not None
+            yield gr.update(value=audio, visible=has_audio), render_status(status_text, eta, progress)
 
-        for audio_path, status in synthesize_fn(*args):
-            status_text, estimate_text = _split_estimate_status(status)
-
-            if not estimate_text:
-                progress = _extract_progress(status_text)
-                if progress:
-                    unit_label, current, total = progress
-                    now = time.time()
-                    if previous_progress_time is not None:
-                        total_unit_duration += now - previous_progress_time
-                        completed_units += 1
-                    previous_progress_time = now
-
-                    if completed_units == 0:
-                        estimate_text = f"Đang đo thời gian {unit_label} đầu tiên..."
-                    else:
-                        average_unit_duration = total_unit_duration / completed_units
-                        estimated_total = average_unit_duration * total
-                        estimated_remaining = average_unit_duration * max(0, total - current + 1)
-                        estimate_text = (
-                            f"Ước tính còn lại: {_format_duration(estimated_remaining)}\n"
-                            f"Tổng: {_format_duration(estimated_total)}"
-                        )
-
-            yield audio_path, status_text, estimate_text
     return wrapper
+
 
 def cleanup_gpu_memory():
     """Aggressively cleanup GPU memory (CUDA, MPS, XPU)"""

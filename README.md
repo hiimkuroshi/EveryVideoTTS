@@ -27,7 +27,7 @@ Turn text, PDFs and SRT subtitles into natural, perfectly timed Vietnamese voice
 - 📄 **Long text & PDF reading**, plus a multi-speaker **conversation / podcast** mode.
 - 😄 **Emotion cues** *(experimental)*: `[cười]`, `[thở dài]`, `[hắng giọng]` inline in the text.
 - 💻 **Runs anywhere** — torch-free on CPU (ONNX, int8 by default), PyTorch on NVIDIA GPUs and Apple Silicon, plus an Intel Arc (XPU) edition.
-- 🎨 **Studio UI** — redesigned Gradio interface with light and dark themes.
+- 🎨 **Studio UI** — dark-first Gradio interface (with a light mode): model status in the top bar, live progress with time left, one-click emotion tags, and a layout that works on phones.
 
 ## 📌 Table of Contents
 
@@ -80,10 +80,14 @@ Turn text, PDFs and SRT subtitles into natural, perfectly timed Vietnamese voice
 
 ## 🎛️ 2. Using the Studio <a name="studio"></a>
 
-1. **Load a model** — pick a *Backbone* (on CPU, `VieNeu-TTS-v3-Turbo (int8)` is the fastest) and a *Device*, then click **Tải Model**.
-2. **🦜 Đọc truyện (Read text)** — paste text or extract it from a PDF, choose a preset voice or switch to **Voice Cloning**, then click **Bắt đầu**.
-3. **🎬 Lồng tiếng SRT (SRT dubbing)** — see the next section.
-4. **🎭 Hội thoại (Conversation)** — appears when the loaded model supports multi-speaker dialogue. Write a script as `Name: line`, assign a voice to each character and set the pause between turns.
+The Studio opens in dark mode (switch with the sun/moon button in the top bar). The top bar always shows which model is loaded; the result panel on the right shows progress, time left, the player and the **Tải xuống WAV** (download) button.
+
+1. **Load a model** — in **Cấu hình model**, pick a *Model* (on CPU, `VieNeu-TTS-v3-Turbo (int8)` is the fastest) and a *Device* (*Thiết bị*), then click **Tải model**. The panel folds away once the model is ready; click it to switch models. **Gợi ý chọn model** has tips for CPU / GPU / custom models.
+2. **Đọc văn bản (Read text)** — paste text or import it from a PDF. With v3 models, the **Chèn cảm xúc** chips insert `[cười]`, `[hắng giọng]`, `[thở dài]` at the cursor. Choose **Giọng có sẵn** (preset voice) or **Clone giọng** (voice cloning), then click **Tạo giọng nói**.
+3. **Lồng tiếng SRT (SRT dubbing)** — see the next section.
+4. **Hội thoại (Conversation)** — appears when the loaded model supports multi-speaker dialogue. Write a script as `Name: line`, click **Quét nhân vật** to detect the characters, assign a voice to each one and set the pause between turns.
+
+Temperature, chunk size and GPU batching live under **Tinh chỉnh nâng cao**. **Dừng** stops a running job.
 
 ---
 
@@ -91,13 +95,13 @@ Turn text, PDFs and SRT subtitles into natural, perfectly timed Vietnamese voice
 
 ![SRT dubbing tab](docs/images/studio-srt.png)
 
-1. Upload a `.srt` / `.txt` file (or paste the subtitles) and click **Quét & Phân tích SRT** to check the lines and detect speakers.
-2. Choose the main voice (preset or cloned). Under **Phân vai nhân vật**, optionally give each detected speaker their own voice.
-3. Set the timing options, then click **Bắt đầu lồng tiếng SRT**.
+1. **Phụ đề** — upload a `.srt` / `.txt` file (or paste the subtitles) and click **Phân tích phụ đề**. A summary shows the line count, timeline length, detected speakers and the first lines.
+2. **Giọng đọc** — choose the main voice (preset or cloned). Under **Phân vai theo nhân vật**, which opens by itself when speakers are found, give each speaker their own voice.
+3. **Đồng bộ thời gian** — set the timing options, then click **Bắt đầu lồng tiếng**.
 
 | Option | Values | What it does |
 |---|---|---|
-| Timeline mode | **Strict Sync** *(default)* / Sequential | Strict Sync starts every line at its timestamp and fills the gaps with silence (if a line still runs over, the next one follows right after it). Sequential reads the lines back to back and keeps the original gaps between subtitles. |
+| Timeline mode | **Khớp mốc thời gian** (Strict Sync, *default*) / Đọc nối tiếp (Sequential) | Strict Sync starts every line at its timestamp and fills the gaps with silence (if a line still runs over, the next one follows right after it). Sequential reads the lines back to back and keeps the original gaps between subtitles. |
 | Lead-in | 0–5 s | Silence added before the first line. |
 | Auto Speed Matching | **Auto speed-up** *(default)* / Fit exactly / Keep 1.0× | Auto speed-up only speeds up lines that overflow their slot. Fit exactly speeds up or slows down (to 0.8× at most) every line to match its slot. Keep 1.0× leaves speed untouched. |
 | Max speed | 1.1–3.0× (default 2.0×) | Upper limit for speed-up, so speech stays intelligible. |

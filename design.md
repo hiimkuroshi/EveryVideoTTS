@@ -1,146 +1,120 @@
-# 🎨 Tài Liệu Thiết Kế Giao Diện EveryVideoTTS Studio (design.md)
+# 🎨 Thiết kế giao diện EveryVideoTTS Studio
+
+Tài liệu mô tả hệ thống thiết kế và bố cục của web UI (`vieneu-web`, Gradio).
+Mã nguồn liên quan:
+
+| File | Vai trò |
+| :--- | :--- |
+| `apps/ui_constants.py` | Bảng màu (token sáng / tối), theme Gradio, toàn bộ CSS, script trong `<head>`, bản dịch chữ dựng sẵn của Gradio |
+| `apps/ui_components.py` | Hàm dựng HTML: thanh tiêu đề, trạng thái model, thẻ tiến độ, tóm tắt SRT, gợi ý model |
+| `apps/ui_utils.py` | `stream_with_status`: chuyển luồng `(audio, trạng thái)` của backend thành thẻ tiến độ + ETA |
+| `apps/gradio_main.py` | Bố cục và nối sự kiện (bản chính) |
+| `apps/gradio_xpu.py` | Bản Intel Arc, dùng chung theme/CSS/thành phần |
 
 ---
 
-## 📌 1. Tổng Quan & Triết Lý Thiết Kế
-* **Tên ứng dụng:** **EveryVideoTTS Studio**
-* **Mục tiêu UX/UI:** Tạo ra trải nghiệm phòng thu âm thanh AI (Studio-Grade AI Audio Suite) chuyên nghiệp, trực quan và tốc độ cao.
-* **Phong cách chủ đạo:** **Modern Studio Glassmorphism & Precision Dark/Light Theme**.
-* **Đặc trưng thị giác:**
-  - Tối giản các chi tiết thừa, tập trung vào luồng công việc (Workflow-Driven Design).
-  - Sử dụng hệ thống màu sắc HSL chiều sâu, viền mờ siêu mỏng (Subtle Borders) và đổ bóng nổi đa tầng (Layered Elevation).
-  - Hoàn toàn tương thích và hiển thị liền mạch trên cả giao diện Sáng (Light) và Tối (Dark).
+## 1. Nguyên tắc
+
+* **Studio tối làm mặc định**, có chế độ sáng đầy đủ. Lựa chọn được nhớ trong trình duyệt (`localStorage`), có thể ép bằng `?__theme=light|dark`.
+* **Nội dung trước, cấu hình sau:** khung model tự thu gọn khi model sẵn sàng; tuỳ chọn ít dùng nằm trong mục thu gọn (*Tinh chỉnh nâng cao*, *Gợi ý chọn model*, *Nhập từ PDF*).
+* **Một nguồn sự thật cho màu sắc:** mọi màu nằm trong hai bảng `LIGHT` / `DARK`, sinh ra cả biến theme Gradio lẫn biến CSS `--evt-*`.
+* **Trạng thái luôn nhìn thấy:** thanh tiêu đề cho biết model nào đang dùng; khung Kết quả cho biết đang làm gì, tới đâu, còn bao lâu.
+* **Tiếng Việt toàn bộ**, kể cả chữ dựng sẵn của Gradio (khung tải file, ghi âm, footer) qua `gr.I18n`.
 
 ---
 
-## 📐 2. Hệ Thống Design System & Tokens (`apps/ui_constants.py`)
+## 2. Token
 
-### 🅰️ Typography
-* **Primary Fonts:** `Plus Jakarta Sans`, `Inter`, `system-ui`, `sans-serif`
-* **Monospace Font:** `JetBrains Mono`, `ui-monospace`
-* **Phân cấp kiểu chữ (Type Hierarchy):**
-  - **App Title (Hero):** 1.85rem (29.6px), Font-weight 800, Letter-spacing `-0.03em`.
-  - **Section / Tab Headers:** 1.1rem (17.6px), Font-weight 700.
-  - **Input Labels & Card Titles:** 0.95rem (15.2px), Font-weight 600.
-  - **Body / Content Text:** 0.9rem (14.4px), Line-height 1.6.
-  - **Badge / Metadata Text:** 0.82rem (13.1px), Font-weight 600.
+### Màu
 
-### 🎨 Color Palette & HSL Tokens
-| Phân loại | Mã màu chính | Ứng dụng |
-| :--- | :--- | :--- |
-| **Primary Accent** | `#4f46e5` ➔ `#2563eb` (Indigo - Blue) | Nút bấm chính (Action Buttons), Tab đang chọn, Viền tiêu điểm |
-| **Success Status** | `#10b981` / `#6ee7b7` (Emerald) | Badge chất lượng 48 kHz, Trạng thái Model đã nạp thành công |
-| **Warning / Notice** | `#f59e0b` / `#fbbf24` (Amber) | Cảnh báo tương thích phần cứng, Ghi chú định dạng |
-| **Danger / Stop** | `#ef4444` / `#fca5a5` (Rose) | Nút Dừng khẩn cấp (`⏹️ Dừng xử lý`) |
-| **Studio Header Surface** | `#090d16` ➔ `#111827` ➔ `#1e1b4b` | Nền Gradient không gian phòng thu với ánh sáng khuếch tán |
-| **Card Surface (Light)** | `#ffffff` (Border: `#e2e8f0`) | Thẻ điều khiển, Hộp nhập liệu, Khung hiển thị |
-| **Card Surface (Dark)** | `#0f172a` (Border: `#1e293b`) | Chế độ nền tối chuyên nghiệp, giảm mỏi mắt |
+| Token | Sáng | Tối | Dùng cho |
+| :--- | :--- | :--- | :--- |
+| `bg` | `#F3F4F8` | `#0B0D12` | Nền trang (kèm quầng sáng tím rất nhẹ ở đỉnh) |
+| `surface` | `#FFFFFF` | `#12151C` | Thẻ (card) |
+| `surface-2` | `#F7F8FB` | `#181C25` | Ô nhập, khung phụ trong thẻ |
+| `surface-3` | `#EDEFF5` | `#202531` | Hover, chip, code |
+| `border` / `border-strong` | `#E2E5ED` / `#CBD1DD` | `#242A36` / `#353D4E` | Viền |
+| `text` / `text-2` / `text-3` | `#141824` / `#465064` / `#687186` | `#E8EBF2` / `#A7AFC0` / `#7F889C` | Chữ chính / phụ / chú thích (đều ≥ 4.5:1 trên nền thẻ) |
+| `accent` | `#6246EA` | `#6E58F6` | Nút chính, tab đang chọn, viền focus |
+| `success` / `warning` / `danger` | `#0B8A5F` / `#A16207` / `#D12E3E` | `#3DD9A0` / `#F5C04A` / `#F87C7C` | Hoàn tất / cần chú ý / lỗi, nút Dừng |
+
+Waveform dùng màu cố định `#8A93A8` (chưa phát) và `#7C66FF` (đã phát), đọc được trên cả hai nền.
+
+### Chữ
+
+* **Be Vietnam Pro** (400–700) — font thiết kế cho tiếng Việt, dấu rõ ở mọi cỡ.
+* **JetBrains Mono** — nội dung SRT, mốc thời gian, tag cảm xúc (tắt ligature để `-->` hiển thị đúng ký tự).
+* Cỡ: chữ thường 15px, ô văn bản chính 15.5px / line-height 1.65, nhãn 13.5px đậm, chú thích 13px, tiêu đề mục 15px, nút chính 16px.
+
+### Hình khối
+
+* Bo góc: thẻ 16px, ô nhập 10px, nút 10–11px, chip tròn.
+* Khoảng cách: 16px giữa các khối; thẻ có padding 18–20px (14px trên điện thoại).
 
 ---
 
-## 🏗️ 3. Kiến Trúc Bố Cục Giao Diện (Layout Hierarchy)
+## 3. Bố cục
 
-Giao diện được xây dựng trên lưới chuẩn `max-width: 1440px` chia làm 2 cột bất đối xứng (60% Input / 40% Output) giúp người dùng vừa thao tác dữ liệu vừa theo dõi trực tiếp kết quả âm thanh.
-
-```mermaid
-graph TD
-    Root[Giao diện EveryVideoTTS Studio] --> Header[1. Studio Header Banner]
-    Root --> ControlPanel[2. Studio Control Bar - Nạp Model]
-    Root --> MainGrid[3. Main Studio Workspace]
-    
-    MainGrid --> InputCol[Cột Trái 60%: Workspace Tabs]
-    MainGrid --> OutputCol[Cột Phải 40%: Output & Playback]
-    
-    InputCol --> Tab1[🎙️ Tab 1: Đọc văn bản đơn]
-    InputCol --> Tab2[🎭 Tab 2: Hội thoại Podcast]
-    InputCol --> Tab3[🎬 Tab 3: Lồng tiếng Video & SRT]
-    InputCol --> Tab4[⚙️ Tab 4: Cài đặt Studio]
-    
-    OutputCol --> AudioPlayer[🎧 Audio Waveform Player]
-    OutputCol --> StatusBox[⚡ Hộp trạng thái thời gian thực]
-    OutputCol --> EstimateBox[⏱️ Tiến độ & Tốc độ RTF]
-    OutputCol --> DownloadBtn[📥 Nút tải xuống file WAV]
+```
+┌──────────────────────────────────────────────────────────────┐
+│ [logo] EveryVideoTTS Studio      ● v3-Turbo (int8) · Sẵn sàng │  Thanh tiêu đề
+├──────────────────────────────────────────────────────────────┤
+│ Cấu hình model  (tự thu gọn khi sẵn sàng)                  ⌃ │
+│  Model [▾]   Thiết bị (Auto|CPU|CUDA)   [ Tải model ]        │
+│  ✓ Model đã sẵn sàng · Model · Thiết bị · Backend · Codec    │
+│  › Gợi ý chọn model                                          │
+├────────────────────────────────────┬─────────────────────────┤
+│ Đọc văn bản | Hội thoại | SRT      │ Kết quả   (dính khi cuộn)│
+│ ...nội dung tab...                 │ thẻ trạng thái / tiến độ │
+│ [        Nút hành động        ]    │ trình phát audio         │
+│ › Tinh chỉnh nâng cao              │ [Tải xuống WAV] [Dừng]   │
+└────────────────────────────────────┴─────────────────────────┘
 ```
 
----
-
-## 🔍 4. Chi Tiết Các Khối Giao Diện & Thành Phần
-
-### 🌟 4.1. Studio Header (`.studio-header`)
-* **Logo & Nhận diện:** Biểu tượng 🎬 bo góc tinh tế kèm tên thương hiệu **EveryVideoTTS Studio** và phụ đề định vị sản phẩm.
-* **Metadata Chips:**
-  - `👤 Tác giả: Tyr` (Liên kết GitHub).
-  - `⭐ EveryVideoTTS` (Liên kết mã nguồn: https://github.com/hiimkuroshi/EveryVideoTTS).
-  - `⚡ 48 kHz Studio Quality` (Badge chất lượng cao).
+* Desktop: hai cột 7 : 5, tối đa 1360px; khung Kết quả dính (sticky) khi cuộn.
+* ≤ 1024px: Kết quả xuống dưới, bấm nút tạo sẽ tự cuộn tới Kết quả.
+* ≤ 768px: một cột, lề 10–12px, thanh tiêu đề gọn, tab nhỏ lại để cả 3 tab vừa màn hình.
 
 ---
 
-### 🎛️ 4.2. Studio Control Bar (`.control-panel-card`)
-Gộp toàn bộ tùy chọn nạp mô hình vào một thanh ngang tối giản:
-* **Dropdown Chọn Mô Hình (Backbone):** `VieNeu-TTS-v3-Turbo` (mặc định), `VieNeu-TTS-v2 (GPU)`, `VieNeu-TTS-v2 (CPU)`, `Custom Model`.
-* **Dropdown Audio Codec:** Tự động chọn `VieNeu-Codec` hoặc `NeuCodec`.
-* **Radio Chọn Thiết Bị (Device):** Tự động nhận diện `Auto`, `CUDA (NVIDIA RTX 5070)`, `CPU`.
-* **Nút Tải Model (`btn-primary-action`):** Kích hoạt nạp trọng số mô hình lên VRAM/RAM.
-* **Hộp Trạng Thái Nạp:** Hiển thị chi tiết Backend, Device, Codec và tính năng tối ưu hóa.
+## 4. Thành phần
+
+### Thanh tiêu đề
+Logo (sóng âm trên nền gradient tím), tên sản phẩm, mô tả ngắn, **badge trạng thái model** (xám: chưa tải · vàng nhấp nháy: đang tải · xanh: sẵn sàng · đỏ: lỗi), nút GitHub và nút đổi sáng/tối.
+
+### Khung Cấu hình model
+* Nút *Tải model* đổi thành *Đang tải…* trong lúc nạp.
+* Thẻ trạng thái: biểu tượng + tiêu đề + các chip thông tin (Model, Thiết bị, Backend, Codec); cảnh báo (ví dụ LMDeploy không bật được) hiện thành ghi chú vàng.
+* *Codec* tự chọn theo model nên không hiển thị.
+* *Gợi ý chọn model*: 3 thẻ (máy CPU / máy GPU NVIDIA / model tuỳ chỉnh) + ghi chú về clone giọng, tag cảm xúc và nơi báo lỗi.
+
+### Tab Đọc văn bản
+* Ô văn bản có bộ đếm ký tự, tự giãn theo nội dung.
+* **Chèn cảm xúc** (chỉ v3): chip `[cười]` `[hắng giọng]` `[thở dài]` chèn đúng vị trí con trỏ.
+* *Nhập văn bản từ file PDF* (thu gọn).
+* **Giọng đọc**: điều khiển phân đoạn *Giọng có sẵn | Clone giọng*.
+* Nút **Tạo giọng nói**; khi chưa có model, dòng gợi ý bên dưới nhắc tải model.
+
+### Tab Hội thoại
+Kịch bản `Tên: Lời thoại` → **Quét nhân vật** → bảng **Phân vai** (Nhân vật | Giọng đọc, tối đa 8) → khoảng lặng giữa các lượt → **Tạo hội thoại**. Tab chỉ hiện khi model hỗ trợ (v2, v3).
+
+### Tab Lồng tiếng SRT — 3 bước đánh số
+1. **Phụ đề**: kéo thả file hoặc dán nội dung (font mono) → **Phân tích phụ đề** → thẻ tóm tắt: số câu, độ dài timeline, số nhân vật, 3 câu đầu kèm mốc thời gian.
+2. **Giọng đọc**: giọng chính + **Phân vai theo nhân vật** (tự mở khi phát hiện nhân vật).
+3. **Đồng bộ thời gian**: *Khớp mốc thời gian / Đọc nối tiếp*, độ trễ đầu, chế độ khớp tốc độ (WSOLA), tốc độ tối đa.
+
+### Khung Kết quả
+* **Trống**: biểu tượng sóng âm + hướng dẫn ngắn.
+* **Đang xử lý**: badge nhấp nháy, bước hiện tại (`Đoạn 3/12`, `Câu 4/20`, `Lô 2/5`), thanh tiến độ (chạy vô định khi không biết tổng), phần trăm và thời gian còn lại ước tính.
+* **Hoàn tất**: badge xanh + các ô số liệu đọc từ thông báo của backend (thời gian xử lý, tốc độ so với realtime, số câu, độ dài audio…) + ghi chú (ví dụ số câu đã tự tăng tốc).
+* **Lỗi / Đã dừng / Cần kiểm tra**: badge đỏ / vàng kèm thông báo.
+* Trình phát chỉ hiện khi có audio, tự phát; nút **Tải xuống WAV** hiện khi xong; nút **Dừng** chỉ hiện trong lúc chạy. Trong lúc chạy các nút tạo bị khoá để tránh chạy chồng.
 
 ---
 
-### 🎙️ 4.3. Tab 1: Đọc Văn Bản (Single TTS)
-* **Khung soạn thảo văn bản:** Tự động co giãn dòng, hỗ trợ nhập liệu dài và chuẩn hóa chính tả tiếng Việt.
-* **Thanh gợi ý Tag Cảm Xúc (Quick Emotion Chips):**
-  - `😄 [cười]`, `🗣️ [hắng giọng]`, `💨 [thở dài]`.
-* **Trích xuất văn bản từ PDF (Accordion):** Tải lên tài liệu PDF và tự động trích xuất nội dung vào khung soạn thảo.
-* **Bộ chọn Giọng đọc:**
-  - *Chế độ Preset:* Dropdown danh sách giọng mẫu phong phú (Bình, Tuyên, Vĩnh, Đoan, Ly, Ngọc, Review 1, Review 2...).
-  - *Chế độ Voice Cloning:* Tải lên audio mẫu 3–5s kèm tùy chọn `🔇 Khử nhiễu nền`.
-* **Nút hành động:** `✨ Bắt đầu tạo giọng nói`.
+## 5. Ghi chú kỹ thuật
 
----
-
-### 🎭 4.4. Tab 2: Hội Thoại Podcast Đa Nhân Vật
-* **Trình soạn thảo kịch bản đối thoại:** Định dạng chuẩn `Tên nhân vật: Lời thoại`.
-* **Nút Quét nhân vật (`🔍 Quét nhân vật`):** Tự động phân tích kịch bản và trích xuất danh sách nhân vật.
-* **Bảng phân vai nhân vật (Speaker Mapping):** Lên đến 8 nhân vật với ô tên và dropdown chọn giọng đọc tương ứng.
-* **Thanh trượt Khoảng lặng (Silence Slider):** Điều chỉnh khoảng nghỉ tự nhiên giữa các lượt nói (0.0s – 3.0s).
-* **Nút hành động:** `🎭 Bắt đầu tạo hội thoại`.
-
----
-
-### 🎬 4.5. Tab 3: Lồng Tiếng Video & Phụ Đề SRT (SRT Studio)
-* **Banner Công Nghệ WSOLA:** Giới thiệu thuật toán kéo dãn âm thanh miền thời gian chống rè.
-* **Khu vực nạp SRT:** Hỗ trợ kéo thả file `.srt` / `.txt` hoặc dán trực tiếp nội dung phụ đề có timestamp.
-* **Nút Quét & Phân Tích SRT:** Tự động kiểm tra số lượng câu, mốc thời gian và nhận diện nhân vật trong phụ đề.
-* **Bảng phân vai nhân vật trong SRT:** Gán giọng mẫu riêng cho từng nhân vật xuất hiện trong phụ đề video.
-* **Thanh điều khiển Căn chỉnh & Tốc độ (Auto Speed Matching):**
-  - *Chế độ căn chỉnh Timeline:* `Strict Sync` (Khớp chính xác từng giây phụ đề) / `Sequential` (Nối tiếp).
-  - *Chế độ Speed Matching:*
-    1. `🚀 Tự tăng tốc khi câu bị tràn (Khuyên dùng)`: Tự động phát hiện câu đọc dài hơn thời lượng hiển thị phụ đề và tăng tốc mượt mà bằng WSOLA.
-    2. `🎯 Ép khớp chính xác 100% thời lượng`: Ép khớp 100% thời lượng slot phụ đề (Fit Exact).
-    3. `⏹️ Giữ nguyên tốc độ gốc (1.0x)`: Không thay đổi tốc độ đọc.
-  - *Thanh trượt Giới hạn tốc độ tối đa:* Giới hạn mức tăng tốc (1.0x – 3.0x) để đảm bảo độ rõ chữ.
-* **Nút hành động:** `🎬 Bắt đầu lồng tiếng SRT`.
-
----
-
-### ⚙️ 4.6. Tab 4: Cài Đặt Studio (Hardware & Inference Settings)
-* **GPU Parallel Batching:**
-  - Slider `📊 Batch Size (Generation)`: Cho phép cấu hình từ `1` đến `64` luồng xử lý song song trên GPU RTX 5070.
-* **Temperature Slider:** Điều chỉnh mức độ sáng tạo / cảm xúc của giọng đọc (0.1 – 1.5).
-* **Max Chars per Chunk:** Tối ưu hóa kích thước phân đoạn văn bản (128 – 512 ký tự).
-
----
-
-### 🎧 4.7. Cột Kết Quả & Phát Âm Thanh (Output Area)
-* **Trình phát Audio Waveform:** Hỗ trợ phát trực tiếp, tua nhanh, chỉnh âm lượng và tự động phát khi tạo xong (`autoplay=True`).
-* **Hộp Trạng thái Xử lý (`.status-box`):** Hiển thị chi tiết số câu hoàn thành, số lô batch và thời gian thực hiện.
-* **Hộp Đo lường Tiến độ & Tốc độ (`.estimate-box`):** Hiển thị chỉ số Real-Time Factor (RTF), ví dụ: `Tốc độ: 25.4x realtime`.
-* **Nút Tải xuống File Audio (`download_btn`):** Tải về file `.wav` 48 kHz chuẩn phòng thu.
-* **Nút Dừng Khẩn Cấp (`btn_stop`):** Ngắt tiến trình sinh audio ngay lập tức mà không làm treo hệ thống.
-* **Ghi chú Bản quyền:** Thông báo đóng dấu âm thanh AI bảo mật (Audio Watermarking).
-
----
-
-## 📱 5. Tính Năng Responsive & Khả Năng Tiếp Cận
-* **Desktop (≥ 1200px):** Bố cục 2 cột song song (60/40), hiển thị toàn bộ thanh điều khiển và trình phát cùng lúc.
-* **Tablet / Laptop (768px – 1199px):** Tự động co giãn lề và khoảng cách các thẻ, giữ nguyên tỷ lệ tương tác.
-* **Mobile (< 768px):** Tự động chuyển đổi thành bố cục dọc 1 cột (Stack Layout), các nút bấm mở rộng toàn màn hình (`width: 100%`) để thuận tiện thao tác chạm.
+* Gradio tự thêm tiền tố `.gradio-container … .contain` vào mọi selector **bên trong `@media`**, nên rule trong media query chỉ nhắm được phần tử bên trong app. Lề ngoài dùng `clamp()` thay cho media query.
+* Gradio đo các bản sao ẩn của nút tab để quyết định tab nào bị đẩy vào menu "···"; CSS cỡ chữ/padding của tab phải áp cho cả bản sao (`.tab-container button`).
+* Một dict `gr.update(...)` không được dùng chung cho nhiều output: Gradio `pop("value")` khi áp dụng, output thứ hai sẽ mất giá trị.
+* Sau khi tải lại trang, `restore_ui_state_ui` dựng lại danh sách giọng, tab Hội thoại/Clone và model đang chọn từ trạng thái phía server.
