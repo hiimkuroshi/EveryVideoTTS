@@ -114,9 +114,9 @@ Gộp toàn bộ tùy chọn nạp mô hình vào một thanh ngang tối giản
 * **Thanh điều khiển Căn chỉnh & Tốc độ (Auto Speed Matching):**
   - *Chế độ căn chỉnh Timeline:* `Strict Sync` (Khớp chính xác từng giây phụ đề) / `Sequential` (Nối tiếp).
   - *Chế độ Speed Matching:*
-    1. `⚡ Tự động tăng tốc khi câu đọc bị tràn (Khuyên dùng)`: Tự động phát hiện câu đọc dài hơn thời lượng hiển thị phụ đề và tăng tốc mượt mà bằng WSOLA.
-    2. `⏱️ Khớp chính xác thời lượng từng câu (Fit Exact)`: Ép khớp 100% thời lượng slot phụ đề.
-    3. `⛔ Giữ nguyên tốc độ giọng gốc`: Không thay đổi tốc độ đọc.
+    1. `🚀 Tự tăng tốc khi câu bị tràn (Khuyên dùng)`: Tự động phát hiện câu đọc dài hơn thời lượng hiển thị phụ đề và tăng tốc mượt mà bằng WSOLA.
+    2. `🎯 Ép khớp chính xác 100% thời lượng`: Ép khớp 100% thời lượng slot phụ đề (Fit Exact).
+    3. `⏹️ Giữ nguyên tốc độ gốc (1.0x)`: Không thay đổi tốc độ đọc.
   - *Thanh trượt Giới hạn tốc độ tối đa:* Giới hạn mức tăng tốc (1.0x – 3.0x) để đảm bảo độ rõ chữ.
 * **Nút hành động:** `🎬 Bắt đầu lồng tiếng SRT`.
 

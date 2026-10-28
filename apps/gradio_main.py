@@ -2292,18 +2292,18 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                     <div class="warning-banner-item">
                         <strong>🐆 Hệ máy GPU</strong>
                         <div class="warning-banner-content">
-                            <b>VieNeu-TTS-v3-Turbo (early access)</b> đã được phát hành để dùng thử trước, đã hỗ trợ các tag cảm xúc `[cười]` `[hắng giọng]` `[thở dài]`, tuy nhiên những tính năng này vẫn đang được thử nghiệm và chưa thực sự ổn định, có thể sẽ xảy ra lỗi không mong muốn, nếu có lỗi các bạn hãy báo lỗi tại: <a href="https://github.com/hiimkuroshi/EveryVideoTTS/issues" target="_blank">GitHub Issues</a>. Trong trường hợp bạn cần sự ổn định hãy sử dụng <b>VieNeu-TTS-v2 (GPU)</b>. 
+                            <b>VieNeu-TTS-v3-Turbo (early access)</b> đã được phát hành để dùng thử trước, đã hỗ trợ các tag cảm xúc <code>[cười]</code> <code>[hắng giọng]</code> <code>[thở dài]</code>, tuy nhiên những tính năng này vẫn đang được thử nghiệm và chưa thực sự ổn định, có thể sẽ xảy ra lỗi không mong muốn, nếu có lỗi các bạn hãy thông báo với chúng tôi tại: <a href="https://discord.com/invite/yJt8kzjzWZ" target="_blank" rel="noopener noreferrer">https://discord.com/invite/yJt8kzjzWZ</a>. Trong trường hợp bạn cần sự ổn định hãy sử dụng <b>VieNeu-TTS-v2 (GPU)</b>.
                         </div>
                     </div>
-                    <div class="warning-banner-item" style="background: #dcfce7; border-color: #86efac;">
-                        <strong style="color: #15803d;">🐢 Hệ máy CPU</strong>
-                        <div class="warning-banner-content" style="color: #166534;">
+                    <div class="warning-banner-item warning-banner-item--cpu">
+                        <strong>🐢 Hệ máy CPU</strong>
+                        <div class="warning-banner-content">
                             Máy <b>CPU</b> nên dùng bản <b>VieNeu-TTS-v3-Turbo (int8)</b> để tốc độ tối đa. Chuyển sang <b>VieNeu-TTS-v3-Turbo</b> nếu cần chất lượng cao hơn (nhưng chậm hơn trên CPU).
                         </div>
                     </div>
                 </div>
-                <div style="margin-top: 12px; font-size: 0.85rem; color: #92400e; border-top: 1px dashed #fcd34d; padding-top: 8px;">
-                    💡 <b>Mẹo:</b> Nếu máy bạn có GPU mà không thấy các phiên bản GPU hãy xem lại cách cài đặt uv sync --group gpu
+                <div class="warning-banner-tip">
+                    💡 <b>Mẹo:</b> Nếu máy bạn có GPU mà không thấy các phiên bản GPU hãy xem lại cách cài đặt <code>uv sync --group gpu</code>
                 </div>
             </div>
             """)
@@ -2516,28 +2516,33 @@ with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as d
                             srt_align_mode = gr.Radio(
                                 ["Strict Sync (Khớp chính xác Timeline)", "Sequential (Đọc nối tiếp theo khoảng cách)"],
                                 value="Strict Sync (Khớp chính xác Timeline)",
-                                label="⏱️ Chế độ căn chỉnh Timeline"
+                                label="⏱️ Chế độ căn chỉnh Timeline",
+                                scale=3,
                             )
-                            srt_lead_in = gr.Slider(minimum=0.0, maximum=5.0, value=0.0, step=0.1, label="⏱️ Độ trễ đầu (Lead-in giây)")
+                            srt_lead_in = gr.Slider(minimum=0.0, maximum=5.0, value=0.0, step=0.1, label="⏱️ Độ trễ đầu (giây)", scale=2)
 
                         with gr.Row():
                             srt_speed_mode = gr.Dropdown(
                                 choices=[
-                                    ("🚀 Tự động tăng tốc khi câu đọc bị tràn (Khuyên dùng)", "auto_speed_up"),
+                                    ("🚀 Tự tăng tốc khi câu bị tràn (Khuyên dùng)", "auto_speed_up"),
                                     ("🎯 Ép khớp chính xác 100% thời lượng", "fit_exact"),
                                     ("⏹️ Giữ nguyên tốc độ gốc (1.0x)", "none"),
                                 ],
                                 value="auto_speed_up",
                                 label="⚡ Khớp tốc độ tự động (Auto Speed Matching)",
-                                info="Tự động co/giãn tốc độ để khớp hoàn hảo với thời lượng phụ đề mà không đổi tông giọng."
+                                info="Tự động co/giãn tốc độ để khớp hoàn hảo với thời lượng phụ đề mà không đổi tông giọng.",
+                                scale=3,
+                                # Đủ rộng cho nhãn dài nhất; hàng hẹp hơn thì slider xuống dòng thay vì cắt chữ.
+                                min_width=380,
                             )
                             srt_max_speed = gr.Slider(
                                 minimum=1.1,
                                 maximum=3.0,
                                 value=2.0,
                                 step=0.1,
-                                label="🏎️ Tốc độ tối đa cho phép",
-                                info="Giới hạn mức tăng tốc tối đa (tránh nói quá nhanh gây khó nghe)."
+                                label="🏎️ Tốc độ tối đa",
+                                info="Giới hạn mức tăng tốc tối đa (tránh nói quá nhanh gây khó nghe).",
+                                scale=2,
                             )
 
                         btn_generate_srt = gr.Button("🎬 Bắt đầu lồng tiếng SRT", variant="primary", interactive=False)

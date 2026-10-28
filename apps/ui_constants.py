@@ -86,15 +86,74 @@ css = """
     color: #22D3EE;
     text-decoration: underline;
 }
+/* Dropdown: Gradio đặt mũi tên position:absolute đè lên ô input rộng 100%,
+   nên chữ dài chạy xuống dưới mũi tên. Chừa chỗ cho mũi tên và cắt bằng "…". */
+.wrap-inner .secondary-wrap input[role="listbox"] {
+    padding-right: 28px;
+    text-overflow: ellipsis;
+}
+
+/* Warning banner — mọi màu lấy từ token, dark mode chỉ đổi token. */
 .warning-banner {
-    background-color: #fffbeb;
-    border: 1px solid #fef3c7;
+    --wb-bg: #fffbeb;
+    --wb-border: #fef3c7;
+    --wb-title: #92400e;
+    --wb-text: #78350f;
+    --wb-divider: #fcd34d;
+    --wb-tip-text: #92400e;
+    --wb-tip-label: #78350f;
+    --wb-link: #b45309;
+    /* Thẻ mặc định (GPU, tông vàng) */
+    --wb-card-bg: #fef3c7;
+    --wb-card-border: #fde68a;
+    --wb-card-heading: #b45309;
+    --wb-card-text: #78350f;
+    --wb-chip-text: #451a03;
+    --wb-chip-bg: rgba(251, 191, 36, 0.2);
+
+    background-color: var(--wb-bg);
+    border: 1px solid var(--wb-border);
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 20px;
+    color: var(--wb-text);
+}
+.warning-banner-item--cpu {
+    --wb-card-bg: #dcfce7;
+    --wb-card-border: #86efac;
+    --wb-card-heading: #15803d;
+    --wb-card-text: #166534;
+    --wb-chip-text: #14532d;
+    --wb-chip-bg: rgba(34, 197, 94, 0.2);
+    --wb-link: #15803d;
+}
+.dark .warning-banner {
+    --wb-bg: var(--block-background-fill, #1e293b);
+    --wb-border: rgba(251, 191, 36, 0.35);
+    --wb-title: #fcd34d;
+    --wb-text: #e2e8f0;
+    --wb-divider: rgba(251, 191, 36, 0.3);
+    --wb-tip-text: #cbd5e1;
+    --wb-tip-label: #fbbf24;
+    --wb-link: #fcd34d;
+    --wb-card-bg: var(--background-fill-secondary, #0f172a);
+    --wb-card-border: rgba(251, 191, 36, 0.32);
+    --wb-card-heading: #fbbf24;
+    --wb-card-text: #e2e8f0;
+    --wb-chip-text: #fde68a;
+    --wb-chip-bg: rgba(251, 191, 36, 0.16);
+}
+.dark .warning-banner-item--cpu {
+    --wb-card-bg: var(--background-fill-secondary, #0f172a);
+    --wb-card-border: rgba(74, 222, 128, 0.32);
+    --wb-card-text: #e2e8f0;
+    --wb-card-heading: #4ade80;
+    --wb-chip-text: #bbf7d0;
+    --wb-chip-bg: rgba(74, 222, 128, 0.16);
+    --wb-link: #86efac;
 }
 .warning-banner-title {
-    color: #92400e;
+    color: var(--wb-title);
     font-weight: 700;
     font-size: 1.1rem;
     display: flex;
@@ -110,27 +169,56 @@ css = """
 .warning-banner-item {
     flex: 1;
     min-width: 240px;
-    background: #fef3c7;
+    background: var(--wb-card-bg);
     padding: 12px;
     border-radius: 8px;
-    border: 1px solid #fde68a;
+    border: 1px solid var(--wb-card-border);
 }
 .warning-banner-item strong {
-    color: #b45309;
+    color: var(--wb-card-heading);
     display: block;
     margin-bottom: 4px;
     font-size: 0.95rem;
 }
 .warning-banner-content {
-    color: #78350f;
+    color: var(--wb-text);
     font-size: 0.9rem;
     line-height: 1.5;
 }
+.warning-banner-item .warning-banner-content {
+    color: var(--wb-card-text);
+}
 .warning-banner-content b {
-    color: #451a03;
-    background: rgba(251, 191, 36, 0.2);
+    color: var(--wb-chip-text);
+    background: var(--wb-chip-bg);
     padding: 1px 4px;
     border-radius: 4px;
+}
+.warning-banner code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    color: var(--wb-chip-text);
+    background: var(--wb-chip-bg);
+    border: none;
+    padding: 1px 5px;
+    border-radius: 4px;
+}
+.warning-banner a {
+    color: var(--wb-link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+}
+.warning-banner-tip {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--wb-divider);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--wb-tip-text);
+}
+.warning-banner-tip b {
+    color: var(--wb-tip-label);
 }
 .script-box textarea {
     font-family: 'Inter', sans-serif;
