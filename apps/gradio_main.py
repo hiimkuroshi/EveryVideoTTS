@@ -36,8 +36,7 @@ except ImportError:
 
 from apps.ui_utils import (
     _format_duration,
-    _split_estimate_status,
-    wrap_with_estimate,
+    stream_with_status,
     cleanup_gpu_memory,
     get_ref_text_cached,
     on_codec_change,
@@ -48,9 +47,27 @@ from apps.ui_constants import (
     theme,
     css,
     head_html,
+    i18n,
+    WAVEFORM_COLOR,
+    WAVEFORM_PROGRESS_COLOR,
     DEFAULT_TEXT_GPU,
     DEFAULT_TEXT_TURBO,
     DEFAULT_TEXT_V3
+)
+from apps.ui_components import (
+    render_header,
+    render_model_status,
+    render_model_hints,
+    render_status,
+    render_srt_notice,
+    render_srt_summary,
+    model_state,
+    model_accordion_label,
+    section_head,
+    panel_head,
+    help_text,
+    emotion_chips,
+    footnote_watermark,
 )
 
 # --- CONSTANTS & CONFIG ---
@@ -188,28 +205,32 @@ def _supports_cloning(backbone_choice: str) -> bool:
     return "v3" in c or c == "vieneu-tts-v2 (gpu)"
 
 def get_model_status_message() -> str:
-    """Reconstruct status message from global state"""
+    """Reconstruct status message from global state.
+
+    Format read by apps.ui_components.render_model_status: a title line with a
+    status emoji, then "Key: Value" lines.
+    """
     global model_loaded, tts, using_lmdeploy, current_backbone, current_codec
     if not model_loaded or tts is None:
         return "⏳ Chưa tải model."
-    
+
     if "v2-Turbo" in (current_backbone or ""):
-        backend_name = "⚡ Turbo (v2)"
+        backend_name = "Turbo (v2)"
     elif using_lmdeploy:
-        backend_name = "🚀 LMDeploy (Optimized)"
+        backend_name = "LMDeploy (tối ưu)"
     else:
-        backend_name = "📦 Standard"
-    
+        backend_name = "Standard"
+
     # We don't track the exact device strings perfectly in global state, so we estimate
     try:
         import torch
         has_mps = torch.backends.mps.is_available()
         has_cuda = torch.cuda.is_available()
-    except:
+    except Exception:
         has_mps = has_cuda = False
 
     device_info = "GPU (CUDA)" if (using_lmdeploy or "CUDA" in (current_backbone or "")) else ("MPS (Metal)" if has_mps else "Auto")
-    
+
     if "v2-Turbo" in (current_backbone or ""):
         codec_device = "GPU/MPS" if (has_cuda or has_mps) else "CPU"
     elif "ONNX" in (current_codec or ""):
@@ -217,23 +238,21 @@ def get_model_status_message() -> str:
     else:
         codec_device = "GPU/MPS" if (has_cuda or has_mps) else "CPU"
 
-    preencoded_note = ""    
     opt_info = ""
     if using_lmdeploy and hasattr(tts, 'get_optimization_stats'):
         stats = tts.get_optimization_stats()
         opt_info = (
-            f"\n\n🔧 Tối ưu hóa:"
-            f"\n  • Triton: {'✅' if stats['triton_enabled'] else '❌'}"
-            f"\n  • Max Batch Size (Default): {stats.get('max_batch_size', 'N/A')}"
-            f"\n  • Reference Cache: {stats['cached_references']} voices"
-            f"\n  • Prefix Caching: ❌"
+            f"\nTriton: {'bật' if stats['triton_enabled'] else 'tắt'}"
+            f"\nBatch tối đa: {stats.get('max_batch_size', 'N/A')}"
+            f"\nCache giọng: {stats['cached_references']}"
         )
 
     return (
-        f"✅ Model đã tải thành công!\n\n"
-        f"🔧 Backend: {backend_name}\n"
-        f" Parrot: {current_backbone} on {device_info}\n"
-        f"🎵 Codec: {current_codec} on {codec_device}{preencoded_note}{opt_info}"
+        f"✅ Model đã sẵn sàng\n"
+        f"Model: {current_backbone}\n"
+        f"Thiết bị: {device_info}\n"
+        f"Backend: {backend_name}\n"
+        f"Codec: {current_codec} ({codec_device}){opt_info}"
     )
 
 def restore_ui_state():
@@ -284,7 +303,7 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
     srt_slot_no_updates = [gr.update()] * MAX_SRT_SPEAKERS
 
     yield (
-        "⏳ Đang tải model với tối ưu hóa... Lưu ý: Quá trình này sẽ tốn thời gian. Vui lòng kiên nhẫn.",
+        "⏳ Đang tải model… Lần đầu cần tải trọng số nên có thể mất vài phút.",
         gr.update(interactive=False), # btn_generate
         gr.update(interactive=False), # btn_generate_conv
         gr.update(interactive=False), # btn_generate_srt
@@ -683,9 +702,8 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
         warning_msg = ""
         if lmdeploy_error_reason:
              warning_msg = (
-                 f"\n\n⚠️ **Cảnh báo:** Không thể kích hoạt LMDeploy (Optimized Backend) do lỗi sau:\n"
-                 f"👉 {lmdeploy_error_reason}\n"
-                 f"💡 Hệ thống đã tự động chuyển về chế độ Standard (chậm hơn)."
+                 f"\n⚠️ Không bật được LMDeploy ({lmdeploy_error_reason}). "
+                 f"Đã tự chuyển sang chế độ Standard (chậm hơn)."
              )
 
         success_msg = get_model_status_message()
@@ -776,7 +794,9 @@ def load_model(backbone_choice: str, codec_choice: str, device_choice: str,
             gr.update(interactive=True), # btn_load
             gr.update(interactive=False), # btn_stop
             voice_update,
-            voice_update, # srt_voice_select
+            # Separate dict: Gradio pops "value" from an update while applying it,
+            # so sharing one dict left the SRT voice picker empty.
+            dict(voice_update), # srt_voice_select
             tab_p, tab_c, tab_sel, mode_state,
             conv_tab_update,
             *slot_updates,
@@ -1352,11 +1372,7 @@ def synthesize_speech(text: str, voice_choice: str, custom_audio, custom_text: s
             
             cleanup_gpu_memory()
 
-synthesize_speech_with_estimate = wrap_with_estimate(synthesize_speech)
-
-def synthesize_conversation_with_empty_estimate(*args):
-    for audio_path, status in synthesize_conversation(*args):
-        yield audio_path, status, ""
+synthesize_speech_ui = stream_with_status(synthesize_speech)
 
 # --- CANCELLATION ---
 # threading.Event is a mutable object: never reassigned, always the same reference.
@@ -1794,7 +1810,7 @@ def parse_and_preview_srt(srt_file, srt_text):
         spk_dd_updates = [gr.update(value=None, visible=False)] * MAX_SRT_SPEAKERS
         spk_row_updates = [gr.update(visible=False)] * MAX_SRT_SPEAKERS
         return (
-            "⚠️ *Vui lòng tải file hoặc nhập nội dung SRT.*",
+            render_srt_notice("error", "Chưa có nội dung phụ đề. Hãy tải file .srt hoặc dán nội dung vào ô bên trên."),
             content,
             *spk_name_updates,
             *spk_dd_updates,
@@ -1807,7 +1823,7 @@ def parse_and_preview_srt(srt_file, srt_text):
         spk_dd_updates = [gr.update(value=None, visible=False)] * MAX_SRT_SPEAKERS
         spk_row_updates = [gr.update(visible=False)] * MAX_SRT_SPEAKERS
         return (
-            "❌ *Không tìm thấy câu phụ đề hợp lệ trong nội dung SRT!*",
+            render_srt_notice("error", "Không tìm thấy câu phụ đề hợp lệ. Kiểm tra lại định dạng: số thứ tự, dòng `00:00:01,000 --> 00:00:04,500`, rồi lời thoại."),
             content,
             *spk_name_updates,
             *spk_dd_updates,
@@ -1820,15 +1836,10 @@ def parse_and_preview_srt(srt_file, srt_text):
     total_dur_s = (items[-1].end_ms - items[0].start_ms) / 1000.0
     detected_speakers = extract_srt_speakers(items)
 
-    spk_info = f", gồm **{len(detected_speakers)} nhân vật** (`{', '.join(detected_speakers)}`)" if detected_speakers else ""
-    summary_md = (
-        f"✅ Đã quét thành công **{total_subs} câu phụ đề**{spk_info}.\n\n"
-        f"⏱️ **Mốc thời gian:** `{first_start}` ➔ `{last_end}` (Tổng timeline: ~`{total_dur_s:.1f}s`)\n\n"
-        f"📝 **Xem trước 3 câu đầu:**\n"
+    summary_md = render_srt_summary(
+        total_subs, first_start, last_end, total_dur_s, detected_speakers,
+        [(it.start_str, it.end_str, it.speaker, it.text) for it in items[:3]],
     )
-    for it in items[:3]:
-        spk_tag = f"**[{it.speaker}]** " if it.speaker else ""
-        summary_md += f"- `{it.start_str}` ➔ `{it.end_str}`: {spk_tag}{it.text}\n"
 
     # Auto-match speaker slots
     def _best_match_spk(name):
@@ -2162,745 +2173,682 @@ def synthesize_srt_speech(
         cleanup_gpu_memory()
 
 
-def synthesize_srt_with_empty_estimate(*args):
-    for audio_path, status in synthesize_srt_speech(*args):
-        yield audio_path, status, ""
+# UI adapters: (audio, status text) → (audio update, status card HTML)
+synthesize_conversation_ui = stream_with_status(synthesize_conversation)
+synthesize_srt_ui = stream_with_status(synthesize_srt_speech)
 
 
-EXAMPLES_LIST = [
-    ["Về miền Tây không chỉ để ngắm nhìn sông nước hữu tình, mà còn để cảm nhận tấm chân tình của người dân nơi đây.", "Vĩnh (nam miền Nam)"],
-    ["Hà Nội những ngày vào thu mang một vẻ đẹp trầm mặc và cổ kính đến lạ thường.", "Bình (nam miền Bắc)"],
-]
+def _short_model_name(name: str, custom_id: str = "") -> str:
+    """Compact model name for the top bar pill."""
+    if name == "Custom Model" and custom_id and custom_id.strip():
+        return custom_id.strip().rstrip("/").split("/")[-1]
+    name = name or ""
+    return name[len("VieNeu-TTS-"):] if name.startswith("VieNeu-TTS-") else name
 
-with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS", head=head_html) as demo:
+
+def _model_ui_extras(message: str, backbone: str, custom_id: str = ""):
+    """Top bar + model card updates that follow a model status message."""
+    state = model_state(message)
+    full_name = _short_model_name(backbone, custom_id) if backbone == "Custom Model" else backbone
+    return (
+        render_header(state, _short_model_name(backbone, custom_id)),
+        gr.update(open=(state != "ready"), label=model_accordion_label(state, full_name)),
+    )
+
+
+def load_model_ui(backbone_choice, codec_choice, device_choice, force_lmdeploy,
+                  custom_model_id="", custom_base_model="", custom_hf_token=""):
+    """load_model() + rich status card, top bar pill, and auto-collapsing model card."""
+    for out in load_model(backbone_choice, codec_choice, device_choice, force_lmdeploy,
+                          custom_model_id, custom_base_model, custom_hf_token):
+        out = list(out)
+        message = out[0]
+        out[0] = render_model_status(message)
+        btn_update = dict(out[4]) if isinstance(out[4], dict) else {"__type__": "update"}
+        btn_update["value"] = "Đang tải…" if model_state(message) == "loading" else "Tải model"
+        out[4] = btn_update
+        yield (*out, *_model_ui_extras(message, backbone_choice, custom_model_id))
+
+
+def restore_ui_state_ui():
+    """Page (re)load: rebuild the parts of the UI that depend on the loaded model.
+
+    The model lives in the server process, so after a browser refresh the page must
+    get the voice lists, the conversation / cloning tabs and the model picker back.
+    """
+    message, *rest = restore_ui_state()
+    extras = _model_ui_extras(message, current_backbone or "")
+    n_slots = MAX_SPEAKERS + MAX_SRT_SPEAKERS
+    if not (model_loaded and tts is not None):
+        keep = [gr.update()] * (6 + n_slots)
+        return (render_model_status(message), *rest, *extras, *keep)
+
+    voices = PRESET_VOICES_CACHE
+    values = [v[1] if isinstance(v, tuple) else v for v in voices]
+    default_v = getattr(tts, "_default_voice", None)
+    if default_v not in values:
+        default_v = values[0] if values else None
+    def voice_update():  # one dict per output (Gradio mutates update dicts)
+        return gr.update(choices=voices, value=default_v, interactive=bool(voices))
+    is_v3 = "v3" in (current_backbone or "").lower()
+    is_v2 = current_backbone in ("VieNeu-TTS-v2 (GPU)", "VieNeu-TTS-v2 (CPU)")
+    clone_ok = _supports_cloning(current_backbone or "")
+    backbone_update = gr.update(value=current_backbone) if current_backbone in BACKBONE_CONFIGS else gr.update()
+    return (
+        render_model_status(message), *rest, *extras,
+        backbone_update,
+        voice_update(), voice_update(),
+        gr.update(visible=is_v2 or is_v3),      # conv_tab
+        gr.update(visible=clone_ok),             # tab_custom
+        gr.update(visible=clone_ok),             # srt_tab_custom
+        *[gr.update(choices=CONV_VOICES_CACHE) for _ in range(n_slots)],
+    )
+
+
+CTA_HINT = '<p>Tải model ở khung phía trên để bắt đầu.</p>'
+_SPK_HEAD = '<div class="evt-spk-head"><span>Nhân vật</span><span>Giọng đọc</span></div>'
+_AUDIO_REF_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples", "audio_ref")
+_WAVEFORM = gr.WaveformOptions(
+    waveform_color=WAVEFORM_COLOR,
+    waveform_progress_color=WAVEFORM_PROGRESS_COLOR,
+    skip_length=5,
+)
+
+with gr.Blocks(theme=theme, css=css, title="EveryVideoTTS Studio", head=head_html) as demo:
     # Session ID for cancellation tracking
     session_id_state = gr.State("")
 
-    with gr.Column(elem_classes="container"):
-        gr.HTML("""
-<div class="header-box">
-    <h1 class="header-title">
-        <span class="header-icon">🎬</span>
-        <span class="gradient-text">EveryVideoTTS Studio</span>
-    </h1>
-    <div class="model-card-content">
-        <div class="model-card-item">
-            <strong>Tác giả:</strong>
-            <a href="https://github.com/hiimkuroshi" target="_blank" class="model-card-link">Tyr</a>
-        </div>
-        <div class="model-card-item">
-            <strong>Repository:</strong>
-            <a href="https://github.com/hiimkuroshi/EveryVideoTTS" target="_blank" class="model-card-link">EveryVideoTTS</a>
-        </div>
-        <div class="model-card-item">
-            <strong>Features:</strong>
-            <span class="model-card-link">TTS · Voice Clone · Lồng tiếng SRT</span>
-        </div>
-    </div>
-</div>
-        """)
-        
-        # --- CONFIGURATION ---
-        with gr.Group():
-            with gr.Row():
-                # --- BACKBONE & CODEC DEFAULT LOGIC ---
-                # GPU users default to VieNeu-TTS-v3-Turbo (GPU); CPU-only users get v3 Turbo
-                # (the only CPU backbone). v3 (GPU) is registered solely when HAS_GPU.
-                # int8 là entry đầu tiên → mặc định trên cả CPU lẫn GPU (trên GPU dùng
-                # PyTorch nên int8/fp32 như nhau; trên CPU int8 nhanh nhất).
-                default_backbone = list(BACKBONE_CONFIGS.keys())[0]
-                
-                # Default parameters based on backbone
-                if "v3" in default_backbone.lower():
-                    default_codec = "VieNeu-Codec"
-                    default_temp = 0.8
-                    default_text = DEFAULT_TEXT_V3
-                elif "Turbo" in default_backbone:
-                    default_codec = "VieNeu-Codec"
-                    default_temp = 0.4
-                    default_text = DEFAULT_TEXT_TURBO
-                elif "(CPU)" in default_backbone:
-                    default_codec = "NeuCodec (ONNX)"
-                    default_temp = 0.7
-                    default_text = DEFAULT_TEXT_GPU
-                else:
-                    default_codec = "NeuCodec (Distill)" if "NeuCodec (Distill)" in CODEC_CONFIGS else list(CODEC_CONFIGS.keys())[0]
-                    default_temp = 0.7
-                    default_text = DEFAULT_TEXT_GPU
+    # --- BACKBONE & CODEC DEFAULT LOGIC ---
+    # int8 là entry đầu tiên trên CPU → mặc định; trên GPU v3 Turbo (PyTorch) đứng đầu.
+    default_backbone = list(BACKBONE_CONFIGS.keys())[0]
+    if "v3" in default_backbone.lower():
+        default_codec = "VieNeu-Codec"
+        default_temp = 0.8
+        default_text = DEFAULT_TEXT_V3
+    elif "Turbo" in default_backbone:
+        default_codec = "VieNeu-Codec"
+        default_temp = 0.4
+        default_text = DEFAULT_TEXT_TURBO
+    elif "(CPU)" in default_backbone:
+        default_codec = "NeuCodec (ONNX)"
+        default_temp = 0.7
+        default_text = DEFAULT_TEXT_GPU
+    else:
+        default_codec = "NeuCodec (Distill)" if "NeuCodec (Distill)" in CODEC_CONFIGS else list(CODEC_CONFIGS.keys())[0]
+        default_temp = 0.7
+        default_text = DEFAULT_TEXT_GPU
+    default_is_v3 = "v3" in default_backbone.lower()
+    # v3 Turbo batches chunks through the serving engine → default 32. Must be set at
+    # creation: on_backbone_change (which also sets 32) never fires on load.
+    default_batch_size = 32 if default_is_v3 else 4
+    # Initial clone-tab state must match the DEFAULT backbone: v2 (GPU) needs a
+    # reference transcript, v3 clones from audio only.
+    _default_is_v2_gpu = (default_backbone == "VieNeu-TTS-v2 (GPU)")
+    _CLONE_INFO_V2 = ("**Clone giọng (v2):** tải lên audio mẫu 3–5 giây và gõ **đúng nội dung** của audio đó, "
+                      "kể cả dấu câu — v2 cần bản chép lời để clone.")
+    _CLONE_INFO_V3 = ("**Clone giọng (v3):** chỉ cần audio mẫu 3–5 giây, rõ tiếng, một người nói. "
+                      "Không cần nhập nội dung.")
 
-                # v3 Turbo batches chunks through the serving engine → default 32.
-                # Must be set at creation: v3 is the default backbone, so the
-                # on_backbone_change handler (which also sets 32) never fires on load.
-                default_batch_size = 32 if "v3" in default_backbone.lower() else 4
+    with gr.Column(elem_id="evt-app"):
+        header_html = gr.HTML(render_header("idle"), padding=False, container=False, elem_id="evt-header")
 
+        # ================================ MODEL CARD ================================
+        with gr.Accordion(model_accordion_label("idle"), open=True, elem_id="evt-model-card") as model_card:
+            with gr.Row(elem_id="evt-model-row", equal_height=False):
                 backbone_select = gr.Dropdown(
                     list(BACKBONE_CONFIGS.keys()) + ["Custom Model"],
                     value=default_backbone,
-                    label="🦜 Backbone"
+                    label="Model",
+                    scale=5,
+                    min_width=240,
                 )
-                codec_select = gr.Dropdown(
-                    list(CODEC_CONFIGS.keys()), 
-                    value=default_codec, 
-                    label="🎵 Codec",
-                    interactive=False
-                )
-                device_choice = gr.Radio(get_available_devices(), value="Auto", label="🖥️ Device")
-            
-            with gr.Row(visible=False) as custom_model_group:
+                device_choice = gr.Radio(get_available_devices(), value="Auto", label="Thiết bị", scale=3, min_width=200)
+                btn_load = gr.Button("Tải model", variant="primary", scale=2, min_width=150)
+            # Codec follows the model automatically; kept (hidden) because load_model reads it.
+            codec_select = gr.Dropdown(
+                list(CODEC_CONFIGS.keys()), value=default_codec, label="Codec", interactive=False, visible=False,
+            )
+            with gr.Row(visible=False, equal_height=False) as custom_model_group:
                 custom_backbone_model_id = gr.Textbox(
-                    label="📦 Custom Model ID",
+                    label="Model ID",
                     placeholder="pnnbao-ump/VieNeu-TTS-0.3B-lora-ngoc-huyen",
-                    info="Nhập HuggingFace Repo ID hoặc đường dẫn local",
-                    scale=2
+                    info="Repo ID trên Hugging Face hoặc đường dẫn thư mục local.",
+                    scale=2,
                 )
                 custom_backbone_hf_token = gr.Textbox(
-                    label="🔑 HF Token (nếu private)",
+                    label="HF token",
                     placeholder="Để trống nếu repo public",
                     type="password",
-                    info="Token để truy cập repo private",
-                    scale=1
+                    info="Chỉ cần với repo private.",
+                    scale=1,
                 )
                 base_model_choices = [k for k in BACKBONE_CONFIGS.keys() if "turbo" not in k.lower() and k != "Custom Model"]
                 custom_backbone_base_model = gr.Dropdown(
                     base_model_choices,
-                    label="🔗 Base Model (cho LoRA)",
+                    label="Base model cho LoRA",
                     value=base_model_choices[0] if base_model_choices else None,
                     visible=False,
-                    info="Model gốc để merge với LoRA (GPU Only)",
-                    scale=1
+                    info="Model gốc để merge LoRA (chỉ GPU).",
+                    scale=1,
                 )
-            
-            with gr.Row():
-                use_lmdeploy_cb = gr.Checkbox(
-                    value=True,
-                    label="🚀 Optimize with LMDeploy (Khuyên dùng cho NVIDIA GPU)",
-                    info="Tick nếu bạn dùng GPU để tăng tốc độ tổng hợp đáng kể.",
-                    visible="v3" not in default_backbone.lower(),  # v3 Turbo (PyTorch) không dùng LMDeploy
-                )
-            
-            
-            gr.Markdown("""
-            💡 **Sử dụng Custom Model:** Chọn "Custom Model" để tải LoRA adapter hoặc bất kỳ model nào được finetune từ **VieNeu-TTS** hoặc **VieNeu-TTS-0.3B**.
-            """)
-            
-            gr.HTML("""
-            <div class="warning-banner">
-                <div class="warning-banner-title">
-                    🦜 Gợi ý tối ưu hiệu năng
-                </div>
-                <div class="warning-banner-grid">
-                    <div class="warning-banner-item">
-                        <strong>🐆 Hệ máy GPU</strong>
-                        <div class="warning-banner-content">
-                            <b>VieNeu-TTS-v3-Turbo (early access)</b> đã được phát hành để dùng thử trước, đã hỗ trợ các tag cảm xúc <code>[cười]</code> <code>[hắng giọng]</code> <code>[thở dài]</code>, tuy nhiên những tính năng này vẫn đang được thử nghiệm và chưa thực sự ổn định, có thể sẽ xảy ra lỗi không mong muốn, nếu có lỗi các bạn hãy thông báo với chúng tôi tại: <a href="https://discord.com/invite/yJt8kzjzWZ" target="_blank" rel="noopener noreferrer">https://discord.com/invite/yJt8kzjzWZ</a>. Trong trường hợp bạn cần sự ổn định hãy sử dụng <b>VieNeu-TTS-v2 (GPU)</b>.
-                        </div>
-                    </div>
-                    <div class="warning-banner-item warning-banner-item--cpu">
-                        <strong>🐢 Hệ máy CPU</strong>
-                        <div class="warning-banner-content">
-                            Máy <b>CPU</b> nên dùng bản <b>VieNeu-TTS-v3-Turbo (int8)</b> để tốc độ tối đa. Chuyển sang <b>VieNeu-TTS-v3-Turbo</b> nếu cần chất lượng cao hơn (nhưng chậm hơn trên CPU).
-                        </div>
-                    </div>
-                </div>
-                <div class="warning-banner-tip">
-                    💡 <b>Mẹo:</b> Nếu máy bạn có GPU mà không thấy các phiên bản GPU hãy xem lại cách cài đặt <code>uv sync --group gpu</code>
-                </div>
-            </div>
-            """)
-
-            gr.Markdown(
-                "🆕 **VieNeu-TTS-v3-Turbo (early access)** đã được phát hành để **dùng thử trước** — "
-                "48kHz, **hỗ trợ Voice Cloning** (tính năng clone chỉ có từ **v3** trở lên; v1/v2 không hỗ trợ). "
-                "Bản **v3 đầy đủ** sẽ ra mắt trong **vài tuần tới**.\n\n"
-                "🎭 v3 Turbo đã **hỗ trợ các tag cảm xúc** `[cười]` `[hắng giọng]` `[thở dài]` "
-                "(chèn trực tiếp vào văn bản) — nhưng tính năng này **đang thử nghiệm và chưa thực sự ổn định**."
+            use_lmdeploy_cb = gr.Checkbox(
+                value=True,
+                label="Tăng tốc bằng LMDeploy (khuyên dùng cho GPU NVIDIA)",
+                visible=not default_is_v3,  # v3 Turbo (PyTorch) không dùng LMDeploy
             )
+            model_status = gr.HTML(render_model_status("⏳ Chưa tải model."), padding=False)
+            with gr.Accordion("Gợi ý chọn model", open=False, elem_classes="evt-sub-acc"):
+                gr.HTML(render_model_hints(), padding=False)
 
-            btn_load = gr.Button("🔄 Tải Model", variant="primary")
-            model_status = gr.Markdown("⏳ Chưa tải model.")
-        
-        with gr.Row(elem_classes="container"):
-            # --- INPUT ---
-            with gr.Column(scale=3):
-                with gr.Tabs() as main_input_tabs:
+        # ================================ WORKSPACE =================================
+        with gr.Row(elem_id="evt-workspace", equal_height=False):
+            with gr.Column(scale=7, min_width=360, elem_classes="evt-card", elem_id="evt-main"):
+                with gr.Tabs(elem_id="evt-tabs") as main_input_tabs:
                     # --- TAB 1: SINGLE SPEAKER ---
-                    with gr.Tab("🦜 Đọc truyện", id="single_tab") as single_tab:
-                        with gr.Accordion("📄 Tải lên PDF để trích xuất văn bản", open=False):
-                            gr.Markdown(
-                                "Tải lên file PDF, văn bản sẽ được tự động trích xuất và điền vào ô bên dưới. "
-                                "Bạn có thể chỉnh sửa lại trước khi tạo audio."
-                            )
-                            with gr.Row():
+                    with gr.Tab("Đọc văn bản", id="single_tab") as single_tab:
+                        gr.HTML(section_head("Văn bản", count_for="evt-text"), padding=False)
+                        text_input = gr.Textbox(
+                            label="Văn bản",
+                            show_label=False,
+                            lines=9,
+                            max_lines=30,
+                            value=default_text,
+                            placeholder="Nhập hoặc dán nội dung cần đọc…",
+                            elem_id="evt-text",
+                        )
+                        emotion_chips_html = gr.HTML(emotion_chips("evt-text"), padding=False, visible=default_is_v3)
+                        with gr.Accordion("Nhập văn bản từ file PDF", open=False, elem_classes="evt-inline-acc"):
+                            gr.HTML(help_text("Văn bản trích xuất sẽ thay nội dung ô phía trên; bạn có thể sửa lại trước khi tạo."),
+                                    padding=False)
+                            with gr.Row(equal_height=False):
                                 pdf_upload = gr.File(
-                                    label="📄 Chọn file PDF",
+                                    label="File PDF",
                                     file_types=[".pdf"],
                                     file_count="single",
                                     type="filepath",
+                                    height=120,
                                     scale=3,
+                                    elem_classes="evt-file",
                                 )
-                                btn_extract_pdf = gr.Button("📄 Trích xuất văn bản", variant="secondary", scale=1, min_width=150)
+                                btn_extract_pdf = gr.Button("Trích xuất", variant="secondary", scale=1, min_width=130)
                             pdf_status = gr.Markdown(visible=False)
-                        text_input = gr.Textbox(
-                            label=f"Văn bản",
-                            lines=8,
-                            value=default_text,
-                        )
-                        
-                        with gr.Tabs() as tabs:
-                            with gr.TabItem("👤 Preset", id="preset_mode") as tab_preset:
-                                voice_select = gr.Dropdown(choices=[], value=None, label="Giọng mẫu", allow_custom_value=True)
-                            
-                            # Voice cloning is only available on v3+ models. Hidden by
-                            # default and toggled on by on_backbone_change when a v3
-                            # model is selected.
-                            with gr.TabItem("🦜 Voice Cloning", id="custom_mode", visible=False) as tab_custom:
-                                # Initial clone-tab state must match the DEFAULT backbone:
-                                # on_backbone_change only fires when the dropdown changes, so a
-                                # v2-GPU default would otherwise keep v3's "no transcript" copy
-                                # and a hidden reference-text box (-> false "missing ref text").
-                                _default_is_v2_gpu = (default_backbone == "VieNeu-TTS-v2 (GPU)")
-                                clone_info_md = gr.Markdown(
-                                    "ℹ️ **Voice Cloning (VieNeu-TTS v2).** Tải lên audio mẫu 3–5 giây "
-                                    "và **nhập đúng nội dung** của audio đó (kể cả dấu câu) — v2 cần "
-                                    "reference transcript để clone giọng."
-                                    if _default_is_v2_gpu else
-                                    "ℹ️ **Voice Cloning (VieNeu-TTS v3).** Chỉ cần tải lên audio mẫu "
-                                    "3–5 giây; v3 clone trực tiếp từ audio, không cần nhập nội dung."
+
+                        gr.HTML(section_head("Giọng đọc"), padding=False)
+                        with gr.Tabs(elem_classes="evt-seg") as tabs:
+                            with gr.TabItem("Giọng có sẵn", id="preset_mode") as tab_preset:
+                                voice_select = gr.Dropdown(
+                                    choices=[], value=None, label="Giọng mẫu", allow_custom_value=True,
+                                    info="Mỗi model có bộ giọng riêng — danh sách hiện ra sau khi tải model.",
                                 )
-                                with gr.Group(visible=True) as cloning_elements_group:
-                                    custom_audio = gr.Audio(label="Audio giọng mẫu (3-5 giây) (.wav)", type="filepath")
+                            # Voice cloning is only available on v3+ (and v2 GPU). Hidden by
+                            # default and toggled by on_backbone_change.
+                            with gr.TabItem("Clone giọng", id="custom_mode",
+                                            visible=_supports_cloning(default_backbone)) as tab_custom:
+                                clone_info_md = gr.Markdown(_CLONE_INFO_V2 if _default_is_v2_gpu else _CLONE_INFO_V3)
+                                with gr.Column(visible=True) as cloning_elements_group:
+                                    custom_audio = gr.Audio(
+                                        label="Audio giọng mẫu (3–5 giây)", type="filepath",
+                                        elem_classes="evt-ref-audio", waveform_options=_WAVEFORM,
+                                    )
                                     cloning_warning_msg = gr.Markdown(visible=False, elem_id="cloning-warning")
                                     denoise_checkbox = gr.Checkbox(
-                                        value=True, label="🔇 Denoise audio mẫu",
-                                        info="Khử nhiễu nền + chuẩn hoá audio mẫu trước khi clone (khuyến nghị). Audio dài hơn 8 giây sẽ được cắt ngắn.",
+                                        value=True, label="Khử nhiễu audio mẫu",
+                                        info="Lọc nhiễu nền và chuẩn hoá âm lượng trước khi clone (khuyên dùng). "
+                                             "Audio dài hơn 8 giây sẽ được cắt bớt.",
                                     )
-                                    # v3 clones from audio only — the reference transcript box
-                                    # is hidden for v3 (toggled by on_backbone_change).
-                                    custom_text = gr.Textbox(label="Nội dung audio mẫu - vui lòng gõ đúng nội dung của audio mẫu - kể cả dấu câu vì model rất nhạy cảm với dấu câu (.,?!)", visible=_default_is_v2_gpu)
+                                    custom_text = gr.Textbox(
+                                        label="Nội dung của audio mẫu",
+                                        info="Gõ đúng từng chữ trong audio mẫu, kể cả dấu câu (.,?!) — model rất nhạy với dấu câu.",
+                                        visible=_default_is_v2_gpu,
+                                    )
                                     gr.Examples(
                                         examples=[
-                                            [os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples", "audio_ref", "example.wav"), "Ví dụ 2. Tính trung bình của dãy số."],
-                                            [os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples", "audio_ref", "example_2.wav"), "Trên thực tế, các nghi ngờ đã bắt đầu xuất hiện."],
-                                            [os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples", "audio_ref", "example_3.wav"), "Cậu có nhìn thấy không?"],
-                                            [os.path.join(os.path.dirname(os.path.dirname(__file__)), "examples", "audio_ref", "example_4.wav"), "Tết là dịp mọi người háo hức đón chào một năm mới với nhiều hy vọng và mong ước."]
+                                            [os.path.join(_AUDIO_REF_DIR, "example.wav"), "Ví dụ 2. Tính trung bình của dãy số."],
+                                            [os.path.join(_AUDIO_REF_DIR, "example_2.wav"), "Trên thực tế, các nghi ngờ đã bắt đầu xuất hiện."],
+                                            [os.path.join(_AUDIO_REF_DIR, "example_3.wav"), "Cậu có nhìn thấy không?"],
+                                            [os.path.join(_AUDIO_REF_DIR, "example_4.wav"), "Tết là dịp mọi người háo hức đón chào một năm mới với nhiều hy vọng và mong ước."],
                                         ],
                                         inputs=[custom_audio, custom_text],
-                                        label="Ví dụ mẫu để thử nghiệm clone giọng"
+                                        label="Audio mẫu để thử",
                                     )
-                                    
-                                    gr.Markdown("""
-                                    **💡 Mẹo nhỏ:** Nếu kết quả Zero-shot Voice Cloning chưa như ý, bạn hãy cân nhắc **Finetune (LoRA)** để đạt chất lượng tốt nhất. 
-                                    Hướng dẫn chi tiết có tại file: `finetune/README.md` hoặc xem trên [GitHub](https://github.com/hiimkuroshi/EveryVideoTTS/tree/main/finetune).
-                                    """)
-                        
+                                    gr.HTML(
+                                        '<p class="evt-help">Kết quả clone chưa ưng ý? Có thể <b>finetune LoRA</b> để đạt '
+                                        'chất lượng tốt nhất — xem <code>finetune/README.md</code> hoặc '
+                                        '<a href="https://github.com/hiimkuroshi/EveryVideoTTS/tree/main/finetune" '
+                                        'target="_blank" rel="noopener noreferrer">hướng dẫn trên GitHub</a>.</p>',
+                                        padding=False,
+                                    )
+
+                        # Only one generation mode exists; kept hidden because synthesize_speech reads it.
                         generation_mode = gr.Radio(
-                            ["Standard (Một lần)"],
-                            value="Standard (Một lần)",
-                            label="Chế độ sinh"
+                            ["Standard (Một lần)"], value="Standard (Một lần)", label="Chế độ sinh", visible=False,
                         )
-                        btn_generate = gr.Button("🎵 Bắt đầu", variant="primary", scale=2, interactive=False)
+                        btn_generate = gr.Button("Tạo giọng nói", variant="primary", size="lg", interactive=False,
+                                                 elem_classes="evt-cta")
+                        gr.HTML(CTA_HINT, padding=False, elem_classes="evt-cta-hint")
 
                     # --- TAB 2: MULTI-SPEAKER CONVERSATION ---
-                    with gr.Tab("🎭 Hội thoại", id="conv_tab", visible=False) as conv_tab:
+                    with gr.Tab("Hội thoại", id="conv_tab", visible=False) as conv_tab:
+                        gr.HTML(section_head("Kịch bản", count_for="evt-conv-script"), padding=False)
                         conv_script_input = gr.Textbox(
                             label="Kịch bản hội thoại",
+                            show_label=False,
                             placeholder="Phương: Chào mọi người, mình là Phương...",
-                            lines=10,
-                            elem_classes="script-box",
+                            lines=12,
+                            max_lines=30,
+                            elem_id="evt-conv-script",
                             value='Phương: Chào mọi người, mình là Phương. Hôm nay team có một announcement cực lớn về chế độ hội thoại của EveryVideoTTS Studio, chạy trên model VieNeu-TTS V2. Đồng hành cùng mình là anh Dũng và Hùng. Hi guys!\n\nDũng: Yo, chào cả nhà. Mình sẽ đi thẳng vào technical side của bản nâng cấp này để mọi người có cái nhìn deep hơn nhé.\n\nHùng: Chào mọi người. Thật sự V2 là một huge milestone. Nó phá vỡ rào cản của những công cụ đọc văn bản khô khan, hướng tới một sự natural communication đúng nghĩa.\n\nPhương: Correct! Và bất ngờ nhất là: nãy giờ mọi người đang nghe bản demo được tạo ra 100% bằng VieNeu-TTS V2 đấy. Tụi mình đều là sản phẩm của AI hết. Amazing, right?\n\nDũng: Đỉnh thật sự! Tiện đây Hùng share thêm về cái nội công bên trong của model này đi.\n\nHùng: Chắc chắn rồi. Model được train trên 10000 hours audio chất lượng cao, nên nó hỗ trợ code-switching Anh Việt cực mượt, tự nhiên như podcast. Đặc biệt, dự án này hoàn toàn open-source để cộng đồng cùng phát triển.\n\nDũng: Về hiệu năng thì khỏi bàn. Khi test trên GPU quốc dân RTX 3060, tốc độ sinh audio nhanh gấp 10 lần realtime. Và đừng lo, nếu bạn không có card đồ hỏa xịn, tụi mình có sẵn bản CPU version để ai cũng có thể tiếp cận được.\n\nPhương: Tốc độ cực nhanh, hỗ trợ đa nền tảng và hoàn toàn miễn phí. Mọi người hãy cùng trải nghiệm nhé!'
                         )
-                        
-                        with gr.Row():
-                            btn_detect_speakers = gr.Button("🔍 Quét nhân vật", size="sm", variant="secondary")
-                            silence_slider = gr.Slider(minimum=0, maximum=3, value=0.1, step=0.1, label="⏱️ Khoảng lặng (giây)")
+                        gr.HTML(help_text("Mỗi lượt thoại một đoạn theo dạng `Tên: Lời thoại`. "
+                                          "Bấm **Quét nhân vật** để tự nhận diện và gán giọng."), padding=False)
+                        with gr.Row(equal_height=False):
+                            btn_detect_speakers = gr.Button("Quét nhân vật", variant="secondary", scale=1, min_width=150)
+                            silence_slider = gr.Slider(minimum=0, maximum=3, value=0.1, step=0.1,
+                                                       label="Khoảng lặng giữa các lượt (giây)", scale=3)
 
-                        gr.Markdown("### 🎭 Cấu hình giọng đọc")
-                        gr.Markdown("*Nhấn **Quét nhân vật** để tự động phát hiện và ánh xạ giọng đọc. Tải model trước để có danh sách giọng.*")
-
+                        gr.HTML(section_head("Phân vai"), padding=False)
+                        gr.HTML(_SPK_HEAD, padding=False)
                         # Pre-build MAX_SPEAKERS speaker slot rows
                         speaker_name_boxes = []
-                        speaker_voice_dds  = []
-                        speaker_slot_rows  = []
-
+                        speaker_voice_dds = []
+                        speaker_slot_rows = []
+                        _default_cast = {0: ("Phương", "Ly"), 1: ("Dũng", "Binh"), 2: ("Hùng", "Sơn")}
                         for _i in range(MAX_SPEAKERS):
-                            # Mặc định cho 3 nhân vật đầu tiên theo yêu cầu
-                            _default_name = ""
-                            _default_voice = None
-                            _row_visible = False
-                            
-                            if _i == 0:
-                                _default_name = "Phương"
-                                _default_voice = "Ly"
-                                _row_visible = True
-                            elif _i == 1:
-                                _default_name = "Dũng"
-                                _default_voice = "Binh"
-                                _row_visible = True
-                            elif _i == 2:
-                                _default_name = "Hùng"
-                                _default_voice = "Sơn"
-                                _row_visible = True
-                            elif _i < 2:
-                                _default_name = f"Nhân vật {_i+1}"
-                                _row_visible = True
-
-                            with gr.Row(visible=_row_visible) as _row:
-                                _name = gr.Textbox(
-                                    value=_default_name,
-                                    label="👤 Nhân vật",
-                                    interactive=False,
-                                    scale=1,
-                                    min_width=120
-                                )
-                                _dd = gr.Dropdown(
-                                    choices=PRESET_VOICES_CACHE,
-                                    value=_default_voice,
-                                    label="🎤 Giọng đọc",
-                                    interactive=True,
-                                    scale=3,
-                                    allow_custom_value=True
-                                )
+                            _default_name, _default_voice = _default_cast.get(_i, ("", None))
+                            with gr.Row(visible=_i in _default_cast, equal_height=True,
+                                        elem_classes="evt-spk-row") as _row:
+                                _name = gr.Textbox(value=_default_name, label="Nhân vật", show_label=False,
+                                                   interactive=False, scale=1, min_width=120,
+                                                   elem_classes="evt-spk-name")
+                                _dd = gr.Dropdown(choices=PRESET_VOICES_CACHE, value=_default_voice, label="Giọng đọc",
+                                                  show_label=False, interactive=True, scale=3,
+                                                  allow_custom_value=True)
                             speaker_slot_rows.append(_row)
                             speaker_name_boxes.append(_name)
                             speaker_voice_dds.append(_dd)
-                        
-                        btn_generate_conv = gr.Button("🎭 Bắt đầu hội thoại", variant="primary", interactive=False)
+
+                        btn_generate_conv = gr.Button("Tạo hội thoại", variant="primary", size="lg",
+                                                      interactive=False, elem_classes="evt-cta")
+                        gr.HTML(CTA_HINT, padding=False, elem_classes="evt-cta-hint")
 
                     # --- TAB 3: SRT DUBBING ---
-                    with gr.Tab("🎬 Lồng tiếng SRT", id="srt_tab") as srt_tab:
-                        with gr.Accordion("📄 Tải lên file phụ đề (.srt)", open=True):
-                            srt_file_upload = gr.File(
-                                label="📄 Chọn file phụ đề (.srt hoặc .txt)",
-                                file_types=[".srt", ".txt"],
-                                file_count="single",
-                                type="filepath",
-                            )
-                        srt_text_input = gr.Textbox(
-                            label="Nội dung phụ đề (SRT)",
-                            placeholder="1\n00:00:01,000 --> 00:00:04,500\nXin chào các bạn...",
-                            lines=7,
-                            value=DEFAULT_SRT_EXAMPLE,
+                    with gr.Tab("Lồng tiếng SRT", id="srt_tab") as srt_tab:
+                        gr.HTML(section_head("Phụ đề", step=1), padding=False)
+                        srt_file_upload = gr.File(
+                            label="File phụ đề (.srt hoặc .txt)",
+                            file_types=[".srt", ".txt"],
+                            file_count="single",
+                            type="filepath",
+                            height=110,
+                            elem_classes="evt-file",
                         )
-                        with gr.Row():
-                            btn_parse_srt = gr.Button("🔍 Quét & Phân tích SRT", size="sm", variant="secondary")
-                        
-                        srt_summary_md = gr.Markdown("ℹ️ *Nhấn **Quét & Phân tích SRT** để kiểm tra câu thoại và tự động nhận diện nhân vật.*")
+                        srt_text_input = gr.Textbox(
+                            label="Hoặc dán / chỉnh nội dung phụ đề",
+                            placeholder="1\n00:00:01,000 --> 00:00:04,500\nXin chào các bạn...",
+                            lines=8,
+                            max_lines=24,
+                            value=DEFAULT_SRT_EXAMPLE,
+                            elem_id="evt-srt-text",
+                        )
+                        btn_parse_srt = gr.Button("Phân tích phụ đề", variant="secondary", elem_classes="evt-btn-fit")
+                        srt_summary_md = gr.HTML(
+                            render_srt_notice("empty", "Bấm **Phân tích phụ đề** để kiểm tra số câu, mốc thời gian "
+                                                       "và tự nhận diện nhân vật."),
+                            padding=False,
+                        )
 
+                        gr.HTML(section_head("Giọng đọc", step=2), padding=False)
                         srt_mode_state = gr.State("srt_preset_mode")
-
-                        with gr.Tabs() as srt_voice_tabs:
-                            with gr.TabItem("👤 Giọng mặc định (Preset)", id="srt_preset_mode") as srt_tab_preset:
-                                srt_voice_select = gr.Dropdown(choices=PRESET_VOICES_CACHE, value=None, label="🎤 Giọng đọc chính", allow_custom_value=True)
-
-                            with gr.TabItem("🦜 Voice Cloning", id="srt_custom_mode") as srt_tab_custom:
-                                with gr.Group() as srt_cloning_elements_group:
-                                    srt_custom_audio = gr.Audio(label="Audio giọng mẫu (3-5 giây) (.wav)", type="filepath")
+                        with gr.Tabs(elem_classes="evt-seg") as srt_voice_tabs:
+                            with gr.TabItem("Giọng có sẵn", id="srt_preset_mode") as srt_tab_preset:
+                                srt_voice_select = gr.Dropdown(
+                                    choices=PRESET_VOICES_CACHE, value=None, label="Giọng đọc chính",
+                                    allow_custom_value=True, info="Dùng cho mọi câu chưa gán nhân vật riêng.",
+                                )
+                            with gr.TabItem("Clone giọng", id="srt_custom_mode") as srt_tab_custom:
+                                with gr.Column() as srt_cloning_elements_group:
+                                    srt_custom_audio = gr.Audio(
+                                        label="Audio giọng mẫu (3–5 giây)", type="filepath",
+                                        elem_classes="evt-ref-audio", waveform_options=_WAVEFORM,
+                                    )
                                     srt_cloning_warning_msg = gr.Markdown(visible=False)
-                                    srt_denoise_cb = gr.Checkbox(value=True, label="🔇 Khử nhiễu audio mẫu", info="Khử nhiễu nền trước khi clone giọng.")
+                                    srt_denoise_cb = gr.Checkbox(value=True, label="Khử nhiễu audio mẫu",
+                                                                 info="Lọc nhiễu nền trước khi clone giọng.")
 
-                        with gr.Accordion("👥 Phân vai nhân vật trong SRT (Tùy chọn)", open=False) as srt_speakers_accordion:
-                            gr.Markdown("*Nếu phụ đề có định dạng `Tên: Lời thoại` hoặc `[Tên] Lời thoại`, bạn có thể gán giọng riêng cho từng nhân vật ở đây:*")
+                        with gr.Accordion("Phân vai theo nhân vật (tuỳ chọn)", open=False,
+                                          elem_classes="evt-inline-acc") as srt_speakers_accordion:
+                            gr.HTML(help_text("Phụ đề dạng `Tên: lời thoại`, `[Tên] lời thoại` hoặc `<v Tên>` được nhận "
+                                              "diện khi phân tích. Gán giọng riêng cho từng nhân vật (tối đa 8)."),
+                                    padding=False)
+                            gr.HTML(_SPK_HEAD, padding=False)
                             srt_speaker_name_boxes = []
-                            srt_speaker_voice_dds  = []
-                            srt_speaker_slot_rows  = []
-
+                            srt_speaker_voice_dds = []
+                            srt_speaker_slot_rows = []
                             for _i in range(MAX_SRT_SPEAKERS):
-                                with gr.Row(visible=False) as _srow:
-                                    _sname = gr.Textbox(value="", label="👤 Nhân vật", interactive=False, scale=1, min_width=120)
-                                    _sdd = gr.Dropdown(choices=PRESET_VOICES_CACHE, value=None, label="🎤 Giọng đọc", interactive=True, scale=3, allow_custom_value=True)
+                                with gr.Row(visible=False, equal_height=True, elem_classes="evt-spk-row") as _srow:
+                                    _sname = gr.Textbox(value="", label="Nhân vật", show_label=False, interactive=False,
+                                                        scale=1, min_width=120, elem_classes="evt-spk-name")
+                                    _sdd = gr.Dropdown(choices=PRESET_VOICES_CACHE, value=None, label="Giọng đọc",
+                                                       show_label=False, interactive=True, scale=3,
+                                                       allow_custom_value=True)
                                 srt_speaker_slot_rows.append(_srow)
                                 srt_speaker_name_boxes.append(_sname)
                                 srt_speaker_voice_dds.append(_sdd)
 
-                        with gr.Row():
+                        gr.HTML(section_head("Đồng bộ thời gian", step=3), padding=False)
+                        with gr.Row(equal_height=False):
                             srt_align_mode = gr.Radio(
-                                ["Strict Sync (Khớp chính xác Timeline)", "Sequential (Đọc nối tiếp theo khoảng cách)"],
+                                choices=[
+                                    ("Khớp mốc thời gian", "Strict Sync (Khớp chính xác Timeline)"),
+                                    ("Đọc nối tiếp", "Sequential (Đọc nối tiếp theo khoảng cách)"),
+                                ],
                                 value="Strict Sync (Khớp chính xác Timeline)",
-                                label="⏱️ Chế độ căn chỉnh Timeline",
+                                label="Chế độ timeline",
+                                info="Khớp mốc: mỗi câu bắt đầu đúng thời điểm của nó. Nối tiếp: đọc liền mạch, giữ khoảng nghỉ gốc.",
                                 scale=3,
+                                min_width=280,
                             )
-                            srt_lead_in = gr.Slider(minimum=0.0, maximum=5.0, value=0.0, step=0.1, label="⏱️ Độ trễ đầu (giây)", scale=2)
-
-                        with gr.Row():
+                            srt_lead_in = gr.Slider(minimum=0.0, maximum=5.0, value=0.0, step=0.1,
+                                                    label="Độ trễ đầu (giây)",
+                                                    info="Thêm khoảng lặng trước câu đầu tiên.", scale=2, min_width=220)
+                        with gr.Row(equal_height=False):
                             srt_speed_mode = gr.Dropdown(
                                 choices=[
-                                    ("🚀 Tự tăng tốc khi câu bị tràn (Khuyên dùng)", "auto_speed_up"),
-                                    ("🎯 Ép khớp chính xác 100% thời lượng", "fit_exact"),
-                                    ("⏹️ Giữ nguyên tốc độ gốc (1.0x)", "none"),
+                                    ("Tự tăng tốc khi câu bị tràn (khuyên dùng)", "auto_speed_up"),
+                                    ("Ép khớp đúng 100% thời lượng", "fit_exact"),
+                                    ("Giữ tốc độ gốc (1.0x)", "none"),
                                 ],
                                 value="auto_speed_up",
-                                label="⚡ Khớp tốc độ tự động (Auto Speed Matching)",
-                                info="Tự động co/giãn tốc độ để khớp hoàn hảo với thời lượng phụ đề mà không đổi tông giọng.",
+                                label="Khớp tốc độ",
+                                info="Co giãn bằng WSOLA nên không đổi cao độ giọng.",
                                 scale=3,
-                                # Đủ rộng cho nhãn dài nhất; hàng hẹp hơn thì slider xuống dòng thay vì cắt chữ.
-                                min_width=380,
+                                min_width=280,
                             )
-                            srt_max_speed = gr.Slider(
-                                minimum=1.1,
-                                maximum=3.0,
-                                value=2.0,
-                                step=0.1,
-                                label="🏎️ Tốc độ tối đa",
-                                info="Giới hạn mức tăng tốc tối đa (tránh nói quá nhanh gây khó nghe).",
-                                scale=2,
-                            )
+                            srt_max_speed = gr.Slider(minimum=1.1, maximum=3.0, value=2.0, step=0.1,
+                                                      label="Tốc độ tối đa",
+                                                      info="Giới hạn tăng tốc để lời vẫn dễ nghe.", scale=2, min_width=220)
 
-                        btn_generate_srt = gr.Button("🎬 Bắt đầu lồng tiếng SRT", variant="primary", interactive=False)
+                        btn_generate_srt = gr.Button("Bắt đầu lồng tiếng", variant="primary", size="lg",
+                                                     interactive=False, elem_classes="evt-cta")
+                        gr.HTML(CTA_HINT, padding=False, elem_classes="evt-cta-hint")
 
-                # Global Generation Settings
-                with gr.Row():
-                    use_batch = gr.Checkbox(
-                        value=True, 
-                        label="⚡ Batch Processing",
-                        info="Xử lý nhiều đoạn cùng lúc (chỉ áp dụng khi sử dụng GPU và đã cài đặt LMDeploy)"
-                    )
-                    max_batch_size_run = gr.Slider(
-                        minimum=1,
-                        maximum=32,
-                        value=default_batch_size,
-                        step=1,
-                        label="📊 Batch Size (Generation)",
-                        info="Số lượng đoạn văn bản xử lý cùng lúc. Giá trị cao = nhanh hơn nhưng tốn VRAM hơn. Giảm xuống nếu gặp lỗi Out of Memory."
-                    )
-                
-                with gr.Accordion("⚙️ Cài đặt nâng cao (Generation)", open=False):
-                    with gr.Row():
+                # --- Shared generation settings ---
+                with gr.Accordion("Tinh chỉnh nâng cao", open=False, elem_classes="evt-sub-acc"):
+                    with gr.Row(equal_height=False):
                         temperature_slider = gr.Slider(
                             minimum=0.1, maximum=1.5, value=default_temp, step=0.1,
-                            label="🌡️ Temperature", 
-                            info="Độ sáng tạo. Cao = đa dạng cảm xúc hơn nhưng dễ lỗi. Thấp = ổn định hơn."
+                            label="Temperature",
+                            info="Cao: giàu cảm xúc hơn nhưng dễ lỗi. Thấp: ổn định hơn.",
                         )
                         max_chars_chunk_slider = gr.Slider(
-                            minimum=128, maximum=512,
-                            value=256, step=32,
-                            label="📝 Max Chars per Chunk",
-                            info="Độ dài tối đa mỗi đoạn xử lý (mặc định: 256)."
+                            minimum=128, maximum=512, value=256, step=32,
+                            label="Ký tự tối đa mỗi đoạn",
+                            info="Văn bản dài được chia thành các đoạn không quá mức này (mặc định 256).",
                         )
-                
-                # State to track current mode
+                    with gr.Row(equal_height=False):
+                        use_batch = gr.Checkbox(
+                            value=True,
+                            label="Xử lý theo lô (batch)",
+                            info="Chạy nhiều đoạn cùng lúc — chỉ có tác dụng trên GPU.",
+                        )
+                        max_batch_size_run = gr.Slider(
+                            minimum=1, maximum=32, value=default_batch_size, step=1,
+                            label="Batch size",
+                            info="Cao hơn = nhanh hơn nhưng tốn VRAM. Giảm nếu gặp lỗi hết bộ nhớ.",
+                        )
+
+                # State to track current voice mode (preset / cloning)
                 current_mode_state = gr.State("preset_mode")
-                
-                with gr.Row():
-                    btn_stop = gr.Button("⏹️ Dừng", variant="stop", scale=1, interactive=False)
-            
-            # --- OUTPUT ---
-            with gr.Column(scale=2):
+
+            # ================================ OUTPUT ================================
+            with gr.Column(scale=5, min_width=320, elem_classes="evt-card", elem_id="evt-output"):
+                gr.HTML(panel_head("Kết quả", "Nghe thử & tải về"), padding=False)
+                status_panel = gr.HTML(render_status(""), padding=False, elem_id="evt-status")
                 audio_output = gr.Audio(
-                    label="Kết quả",
+                    label="Bản thu",
                     type="filepath",
-                    autoplay=True
-                )
-                with gr.Group():
-                    status_output = gr.Textbox(
-                        label="Trạng thái", 
-                        elem_classes="status-box",
-                        lines=2,
-                        max_lines=10,
-                        show_copy_button=True
-                    )
-                with gr.Group():
-                    estimate_output = gr.Textbox(
-                        label="Ước tính thời gian",
-                        elem_classes="estimate-box",
-                        lines=2,
-                        max_lines=4,
-                        show_copy_button=True
-                    )
-                download_btn = gr.DownloadButton(
-                    "📥 Tải xuống file Audio",
-                    variant="primary",
+                    autoplay=True,
+                    interactive=False,
                     visible=False,
-                    elem_classes="download-btn"
+                    show_share_button=False,
+                    waveform_options=_WAVEFORM,
+                    elem_id="evt-audio",
                 )
-                gr.Markdown("<div style='text-align: center; color: #64748b; font-size: 0.8rem;'>🔒 Audio được đóng dấu bản quyền ẩn (Watermarker) để bảo mật và định danh AI.</div>")
-        
-        codec_select.change(
-            on_codec_change, 
-            inputs=[codec_select, current_mode_state], 
-            outputs=[tab_custom, tabs, current_mode_state]
+                with gr.Row(elem_id="evt-actions"):
+                    download_btn = gr.DownloadButton("Tải xuống WAV", variant="primary", visible=False)
+                    btn_stop = gr.Button("Dừng", variant="stop", visible=False, interactive=False)
+                gr.HTML(footnote_watermark(), padding=False)
+
+    # ================================ EVENTS ================================
+    codec_select.change(
+        on_codec_change,
+        inputs=[codec_select, current_mode_state],
+        outputs=[tab_custom, tabs, current_mode_state]
+    )
+
+    # Bind tab events to update state
+    tab_preset.select(lambda: "preset_mode", outputs=current_mode_state)
+    tab_custom.select(lambda: "custom_mode", outputs=current_mode_state)
+    srt_tab_preset.select(lambda: "srt_preset_mode", outputs=srt_mode_state)
+    srt_tab_custom.select(lambda: "srt_custom_mode", outputs=srt_mode_state)
+
+    custom_audio.change(validate_audio_duration, inputs=[custom_audio], outputs=[cloning_warning_msg])
+    srt_custom_audio.change(validate_audio_duration, inputs=[srt_custom_audio], outputs=[srt_cloning_warning_msg])
+
+    # --- Model selection ---
+    def on_backbone_change(choice):
+        is_custom = (choice == "Custom Model")
+        is_v3 = "v3" in (choice or "").lower()
+        is_v2_gpu = (choice == "VieNeu-TTS-v2 (GPU)")
+        clone_ok = is_v3 or is_v2_gpu
+        print(f"   🔄 Backbone changed to: {choice}")
+
+        is_hw_accel_supported = "(GPU)" in choice or "v2-Turbo" in choice or "v3" in choice.lower() or is_custom
+        if is_hw_accel_supported:
+            dev_choices = get_available_devices()
+            initial_dev = "Auto"
+        else:
+            dev_choices = ["CPU"]
+            initial_dev = "CPU"
+
+        if is_v3:
+            codec_update = gr.update(value="VieNeu-Codec", interactive=False)
+            text_update = gr.update(value=DEFAULT_TEXT_V3)
+            temp_update = gr.update(value=0.8)
+        elif "Turbo" in choice:
+            codec_update = gr.update(value="VieNeu-Codec", interactive=False)
+            text_update = gr.update(value=DEFAULT_TEXT_TURBO)
+            temp_update = gr.update(value=0.4)
+        elif "(CPU)" in choice:
+            codec_update = gr.update(value="NeuCodec (ONNX)", interactive=False)
+            text_update = gr.update(value=DEFAULT_TEXT_GPU)
+            temp_update = gr.update(value=0.7)
+        else:
+            codec_update = gr.update(value="NeuCodec (Distill)", interactive=False)
+            text_update = gr.update(value=DEFAULT_TEXT_GPU)
+            temp_update = gr.update(value=0.7)
+
+        return (
+            gr.update(visible=is_custom),
+            codec_update,
+            text_update,
+            temp_update,
+            gr.update(choices=dev_choices, value=initial_dev),
+            gr.update(visible=clone_ok),   # cloning_elements_group
+            gr.update(visible=clone_ok),   # tab_custom
+            gr.update(value=32 if is_v3 else 4),  # max_batch_size_run
+            gr.update(visible=not is_v3),  # use_lmdeploy_cb
+            gr.update(visible=is_v2_gpu),  # custom_text: only v2 needs a reference transcript
+            gr.update(value=_CLONE_INFO_V2 if is_v2_gpu else _CLONE_INFO_V3),  # clone_info_md
+            gr.update(value=256),          # max_chars_chunk_slider
+            gr.update(visible=clone_ok),   # srt_tab_custom
+            gr.update(visible=is_v3),      # emotion tag chips (v3 only)
         )
-        
-        # Bind tab events to update state
-        tab_preset.select(lambda: "preset_mode", outputs=current_mode_state)
-        tab_custom.select(lambda: "custom_mode", outputs=current_mode_state)
-        srt_tab_preset.select(lambda: "srt_preset_mode", outputs=srt_mode_state)
-        srt_tab_custom.select(lambda: "srt_custom_mode", outputs=srt_mode_state)
-        
-        custom_audio.change(validate_audio_duration, inputs=[custom_audio], outputs=[cloning_warning_msg])
-        srt_custom_audio.change(validate_audio_duration, inputs=[srt_custom_audio], outputs=[srt_cloning_warning_msg])
-        
-        # --- Custom Model Event Handlers ---
 
-        def on_backbone_change(choice):
-            is_custom = (choice == "Custom Model")
-            is_v3 = "v3" in (choice or "").lower()
-            is_v2_gpu = (choice == "VieNeu-TTS-v2 (GPU)")
-            clone_ok = is_v3 or is_v2_gpu
-            print(f"   🔄 Backbone changed to: {choice}")
-            
-            is_hw_accel_supported = "(GPU)" in choice or "v2-Turbo" in choice or "v3" in choice.lower() or is_custom
-            
-            if is_hw_accel_supported:
-                dev_choices = get_available_devices()
-                initial_dev = "Auto"
-            else:
-                dev_choices = ["CPU"]
-                initial_dev = "CPU"
-            
-            if is_v3:
-                codec_update = gr.update(value="VieNeu-Codec", interactive=False)
-                text_update = gr.update(value=DEFAULT_TEXT_V3)
-                temp_update = gr.update(value=0.8)
-            elif "Turbo" in choice:
-                codec_update = gr.update(value="VieNeu-Codec", interactive=False)
-                text_update = gr.update(value=DEFAULT_TEXT_TURBO)
-                temp_update = gr.update(value=0.4)
-            elif "(CPU)" in choice:
-                codec_update = gr.update(value="NeuCodec (ONNX)", interactive=False)
-                text_update = gr.update(value=DEFAULT_TEXT_GPU)
-                temp_update = gr.update(value=0.7)
-            else:
-                codec_update = gr.update(value="NeuCodec (Distill)", interactive=False)
-                text_update = gr.update(value=DEFAULT_TEXT_GPU)
-                temp_update = gr.update(value=0.7)
+    backbone_select.change(
+        on_backbone_change,
+        inputs=[backbone_select],
+        outputs=[
+            custom_model_group,
+            codec_select,
+            text_input,
+            temperature_slider,
+            device_choice,
+            cloning_elements_group,
+            tab_custom,
+            max_batch_size_run,
+            use_lmdeploy_cb,
+            custom_text,
+            clone_info_md,
+            max_chars_chunk_slider,
+            srt_tab_custom,
+            emotion_chips_html,
+        ]
+    )
 
-            if is_v2_gpu:
-                clone_info_update = gr.update(value=(
-                    "ℹ️ **Voice Cloning (VieNeu-TTS v2).** Tải lên audio mẫu 3–5 giây "
-                    "và **nhập đúng nội dung** của audio đó (kể cả dấu câu) — v2 cần "
-                    "reference transcript để clone giọng."
-                ))
-            else:
-                clone_info_update = gr.update(value=(
-                    "ℹ️ **Voice Cloning (VieNeu-TTS v3).** Chỉ cần tải lên audio mẫu "
-                    "3–5 giây; v3 clone trực tiếp từ audio, không cần nhập nội dung."
-                ))
+    custom_backbone_model_id.change(
+        on_custom_id_change,
+        inputs=[custom_backbone_model_id],
+        outputs=[custom_backbone_base_model, custom_audio, custom_text]
+    )
 
-            return (
-                gr.update(visible=is_custom),
-                codec_update,
-                text_update,
-                temp_update,
-                gr.update(choices=dev_choices, value=initial_dev),
-                gr.update(visible=clone_ok),   # cloning_elements_group
-                gr.update(visible=clone_ok),   # tab_custom
-                gr.update(value=32 if is_v3 else 4),  # max_batch_size_run
-                gr.update(visible=not is_v3),  # use_lmdeploy_cb
-                custom_text,                   # only v2 needs a reference transcript
-                clone_info_update,             # clone_info_md
-                gr.update(value=256),          # max_chars_chunk_slider
-                gr.update(visible=clone_ok),   # srt_tab_custom
+    btn_load.click(
+        fn=load_model_ui,
+        inputs=[backbone_select, codec_select, device_choice, use_lmdeploy_cb,
+                custom_backbone_model_id, custom_backbone_base_model, custom_backbone_hf_token],
+        outputs=[model_status, btn_generate, btn_generate_conv, btn_generate_srt, btn_load, btn_stop, voice_select, srt_voice_select,
+                 tab_preset, tab_custom, tabs, current_mode_state,
+                 conv_tab,
+                 *speaker_voice_dds,
+                 *srt_speaker_voice_dds,
+                 header_html, model_card],
+        show_progress="hidden",
+    )
+
+    # --- PDF Upload ---
+    def on_pdf_upload(pdf_file):
+        """Extract text from uploaded PDF and populate text input."""
+        if not pdf_file:
+            return gr.update(), gr.update(visible=False)
+        extracted = extract_text_from_pdf(pdf_file)
+        if extracted.startswith("⚠️"):
+            return gr.update(), gr.update(value=extracted, visible=True)
+        char_count = len(extracted)
+        return (
+            gr.update(value=extracted),
+            gr.update(
+                value=f"✅ Đã trích xuất **{char_count:,}** ký tự từ PDF vào ô văn bản.",
+                visible=True
             )
-
-        backbone_select.change(
-            on_backbone_change,
-            inputs=[backbone_select],
-            outputs=[
-                custom_model_group,
-                codec_select,
-                text_input,
-                temperature_slider,
-                device_choice,
-                cloning_elements_group,
-                tab_custom,
-                max_batch_size_run,
-                use_lmdeploy_cb,
-                custom_text,
-                clone_info_md,
-                max_chars_chunk_slider,
-                srt_tab_custom,
-            ]
-        )
-        
-        custom_backbone_model_id.change(
-            on_custom_id_change,
-            inputs=[custom_backbone_model_id],
-            outputs=[custom_backbone_base_model, custom_audio, custom_text]
         )
 
-        btn_load.click(
-            fn=load_model,
-            inputs=[backbone_select, codec_select, device_choice, use_lmdeploy_cb,
-                    custom_backbone_model_id, custom_backbone_base_model, custom_backbone_hf_token],
-            outputs=[model_status, btn_generate, btn_generate_conv, btn_generate_srt, btn_load, btn_stop, voice_select, srt_voice_select,
-                     tab_preset, tab_custom, tabs, current_mode_state,
-                     conv_tab,
-                     *speaker_voice_dds,
-                     *srt_speaker_voice_dds]
-        )
-        
-        # --- PDF Upload Event Handlers ---
-        def on_pdf_upload(pdf_file):
-            """Extract text from uploaded PDF and populate text input."""
-            if not pdf_file:
-                return gr.update(), gr.update(visible=False)
-            extracted = extract_text_from_pdf(pdf_file)
-            if extracted.startswith("⚠️"):
-                return gr.update(), gr.update(value=extracted, visible=True)
-            char_count = len(extracted)
-            return (
-                gr.update(value=extracted),
-                gr.update(
-                    value=f"✅ Đã trích xuất **{char_count:,}** ký tự từ file PDF. Bạn có thể chỉnh sửa văn bản bên dưới.",
-                    visible=True
-                )
-            )
+    pdf_upload.change(fn=on_pdf_upload, inputs=[pdf_upload], outputs=[text_input, pdf_status])
+    btn_extract_pdf.click(fn=on_pdf_upload, inputs=[pdf_upload], outputs=[text_input, pdf_status])
 
-        pdf_upload.change(
-            fn=on_pdf_upload,
-            inputs=[pdf_upload],
-            outputs=[text_input, pdf_status]
-        )
-        btn_extract_pdf.click(
-            fn=on_pdf_upload,
-            inputs=[pdf_upload],
-            outputs=[text_input, pdf_status]
-        )
+    # --- SRT parse & preview ---
+    def parse_srt_ui(srt_file, srt_text):
+        result = parse_and_preview_srt(srt_file, srt_text)
+        n_rows = len(srt_speaker_slot_rows)
+        row_updates = result[-n_rows:]
+        has_speakers = any(isinstance(u, dict) and u.get("visible") for u in row_updates)
+        return (*result, gr.update(open=True) if has_speakers else gr.update())
 
-        # --- SRT Parse & Preview Event Handlers ---
-        btn_parse_srt.click(
-            fn=parse_and_preview_srt,
-            inputs=[srt_file_upload, srt_text_input],
-            outputs=[
-                srt_summary_md,
-                srt_text_input,
-                *srt_speaker_name_boxes,
-                *srt_speaker_voice_dds,
-                *srt_speaker_slot_rows,
-            ]
-        )
-        srt_file_upload.change(
-            fn=parse_and_preview_srt,
-            inputs=[srt_file_upload, srt_text_input],
-            outputs=[
-                srt_summary_md,
-                srt_text_input,
-                *srt_speaker_name_boxes,
-                *srt_speaker_voice_dds,
-                *srt_speaker_slot_rows,
-            ]
-        )
+    _srt_parse_outputs = [
+        srt_summary_md,
+        srt_text_input,
+        *srt_speaker_name_boxes,
+        *srt_speaker_voice_dds,
+        *srt_speaker_slot_rows,
+        srt_speakers_accordion,
+    ]
+    btn_parse_srt.click(fn=parse_srt_ui, inputs=[srt_file_upload, srt_text_input], outputs=_srt_parse_outputs)
+    srt_file_upload.change(fn=parse_srt_ui, inputs=[srt_file_upload, srt_text_input], outputs=_srt_parse_outputs)
 
-        # --- SRT Generation Handler ---
-        srt_gen_event = btn_generate_srt.click(
-            fn=synthesize_srt_with_empty_estimate,
-            inputs=[
-                srt_file_upload,
-                srt_text_input,
-                srt_voice_select,
-                srt_custom_audio,
-                srt_denoise_cb,
-                srt_mode_state,
-                srt_align_mode,
-                srt_lead_in,
-                srt_speed_mode,
-                srt_max_speed,
-                temperature_slider,
-                max_chars_chunk_slider,
-                session_id_state,
-                *srt_speaker_name_boxes,
-                *srt_speaker_voice_dds,
-            ],
-            outputs=[audio_output, status_output, estimate_output]
-        )
-        btn_generate_srt.click(lambda: gr.update(visible=False), outputs=[download_btn])
-        btn_generate_srt.click(lambda: gr.update(interactive=True), outputs=btn_stop)
-        srt_gen_event.then(lambda: gr.update(interactive=False), outputs=btn_stop)
-        srt_gen_event.then(
-            fn=lambda a: gr.update(value=a, visible=bool(a and os.path.exists(a))),
-            inputs=[audio_output],
-            outputs=[download_btn]
-        )
+    # --- Generation jobs (shared start / end / stop handling) ---
+    _ctas = [btn_generate, btn_generate_conv, btn_generate_srt]
 
-        # --- Conversation Event Handlers ---
-        # Scan speakers → update all 8 slot rows/names/dropdowns
-        btn_detect_speakers.click(
-            fn=extract_speakers_from_script,
-            inputs=[conv_script_input],
-            outputs=speaker_name_boxes + speaker_voice_dds + speaker_slot_rows
-        )
-        
-        conv_gen_event = btn_generate_conv.click(
-            fn=synthesize_conversation_with_empty_estimate,
-            inputs=[conv_script_input,
-                    *speaker_name_boxes,
-                    *speaker_voice_dds,
-                    silence_slider, temperature_slider, max_chars_chunk_slider,
-                    session_id_state],
-            outputs=[audio_output, status_output, estimate_output]
-        )
-        btn_generate_conv.click(lambda: gr.update(visible=False), outputs=[download_btn])
-        btn_generate_conv.click(lambda: gr.update(interactive=True), outputs=btn_stop)
-        conv_gen_event.then(lambda: gr.update(interactive=False), outputs=btn_stop)
+    def _job_started():
+        # Hide the previous download, show Stop, and lock the start buttons so a
+        # second click can't queue a competing job.
+        return (gr.update(visible=False), gr.update(interactive=True, visible=True),
+                *[gr.update(interactive=False) for _ in _ctas])
 
-        # --- Auto-adjust Temperature on Tab Switch ---
-        conv_tab.select(
-            fn=lambda bb: gr.update(value=0.8 if "v3" in (bb or "").lower() else 1.0),
-            inputs=backbone_select,
-            outputs=temperature_slider
-        )
-        single_tab.select(
-            fn=lambda bb: gr.update(value=0.8 if "v3" in (bb or "").lower() else default_temp),
-            inputs=backbone_select,
-            outputs=temperature_slider
-        )
-        srt_tab.select(
-            fn=lambda bb: gr.update(value=0.8 if "v3" in (bb or "").lower() else default_temp),
-            inputs=backbone_select,
-            outputs=temperature_slider
-        )
-        
-        # --- Standard Generation Handlers ---
-        gen_event = btn_generate.click(
-            fn=synthesize_speech_with_estimate,
-            inputs=[text_input, voice_select, custom_audio, custom_text, current_mode_state,
-                    generation_mode, use_batch, max_batch_size_run,
-                    temperature_slider, max_chars_chunk_slider,
-                    denoise_checkbox, session_id_state],
-            outputs=[audio_output, status_output, estimate_output]
-        )
-        btn_generate.click(lambda: gr.update(visible=False), outputs=[download_btn])
-        btn_generate.click(lambda: gr.update(interactive=True), outputs=btn_stop)
-        gen_event.then(lambda: gr.update(interactive=False), outputs=btn_stop)
+    def _job_finished(audio_path):
+        ok = bool(isinstance(audio_path, str) and audio_path and os.path.exists(audio_path))
+        return (gr.update(value=audio_path if ok else None, visible=ok),
+                gr.update(interactive=False, visible=False),
+                *[gr.update(interactive=model_loaded) for _ in _ctas])
 
-        # --- Stop Button ---
-        def request_stop():
-            print("🛑 STOP REQUESTED via button click.")
-            _STOP_EVENT.set()
-            return None, "⏹️ Đã dừng tạo giọng nói.", "", gr.update(interactive=False)
+    def _wire_job(button, fn, inputs):
+        event = button.click(fn=fn, inputs=inputs, outputs=[audio_output, status_panel], show_progress="hidden")
+        button.click(_job_started, outputs=[download_btn, btn_stop, *_ctas], show_progress="hidden")
+        button.click(None, js="() => { if (window.evtScrollToOutput) window.evtScrollToOutput(); }")
+        event.then(_job_finished, inputs=[audio_output], outputs=[download_btn, btn_stop, *_ctas],
+                   show_progress="hidden")
+        return event
 
-        # Handler: set stop event + update UI
-        btn_stop.click(fn=request_stop, outputs=[audio_output, status_output, estimate_output, btn_stop])
+    gen_event = _wire_job(
+        btn_generate, synthesize_speech_ui,
+        [text_input, voice_select, custom_audio, custom_text, current_mode_state,
+         generation_mode, use_batch, max_batch_size_run,
+         temperature_slider, max_chars_chunk_slider,
+         denoise_checkbox, session_id_state],
+    )
+    conv_gen_event = _wire_job(
+        btn_generate_conv, synthesize_conversation_ui,
+        [conv_script_input, *speaker_name_boxes, *speaker_voice_dds,
+         silence_slider, temperature_slider, max_chars_chunk_slider, session_id_state],
+    )
+    srt_gen_event = _wire_job(
+        btn_generate_srt, synthesize_srt_ui,
+        [srt_file_upload, srt_text_input, srt_voice_select, srt_custom_audio, srt_denoise_cb, srt_mode_state,
+         srt_align_mode, srt_lead_in, srt_speed_mode, srt_max_speed,
+         temperature_slider, max_chars_chunk_slider, session_id_state,
+         *srt_speaker_name_boxes, *srt_speaker_voice_dds],
+    )
 
-        # --- Download Button Event Handlers ---
-        def on_audio_generated(audio_path):
-            """Show download button when audio is generated."""
-            if audio_path and os.path.exists(audio_path):
-                return gr.update(value=audio_path, visible=True)
-            return gr.update(visible=False)
+    # Conversation: scan speakers → update all 8 slot rows/names/dropdowns
+    btn_detect_speakers.click(
+        fn=extract_speakers_from_script,
+        inputs=[conv_script_input],
+        outputs=speaker_name_boxes + speaker_voice_dds + speaker_slot_rows
+    )
 
-        # Connect to generation events
-        gen_event.then(
-            fn=on_audio_generated,
-            inputs=[audio_output],
-            outputs=[download_btn]
-        )
-        conv_gen_event.then(
-            fn=on_audio_generated,
-            inputs=[audio_output],
-            outputs=[download_btn]
-        )
-        # Also connect the stop button to hide download
-        btn_stop.click(
-            fn=lambda: gr.update(visible=False),
-            outputs=[download_btn]
-        )
+    # --- Auto-adjust Temperature on Tab Switch ---
+    conv_tab.select(
+        fn=lambda bb: gr.update(value=0.8 if "v3" in (bb or "").lower() else 1.0),
+        inputs=backbone_select,
+        outputs=temperature_slider
+    )
+    single_tab.select(
+        fn=lambda bb: gr.update(value=0.8 if "v3" in (bb or "").lower() else default_temp),
+        inputs=backbone_select,
+        outputs=temperature_slider
+    )
+    srt_tab.select(
+        fn=lambda bb: gr.update(value=0.8 if "v3" in (bb or "").lower() else default_temp),
+        inputs=backbone_select,
+        outputs=temperature_slider
+    )
 
-        # Persistence: Restore UI state on load
-        demo.load(
-            fn=restore_ui_state,
-            outputs=[model_status, btn_generate, btn_generate_conv, btn_generate_srt, btn_stop]
-        )
+    # --- Stop Button ---
+    def request_stop():
+        print("🛑 STOP REQUESTED via button click.")
+        _STOP_EVENT.set()
+        return (gr.update(value=None, visible=False), render_status("⏹️ Đã dừng tạo giọng nói."),
+                gr.update(interactive=False), gr.update(visible=False))
+
+    btn_stop.click(fn=request_stop, outputs=[audio_output, status_panel, btn_stop, download_btn],
+                   show_progress="hidden")
+
+    # Persistence: Restore UI state on load
+    demo.load(
+        fn=restore_ui_state_ui,
+        outputs=[model_status, btn_generate, btn_generate_conv, btn_generate_srt, btn_stop, header_html, model_card,
+                 backbone_select, voice_select, srt_voice_select, conv_tab, tab_custom, srt_tab_custom,
+                 *speaker_voice_dds, *srt_speaker_voice_dds],
+        show_progress="hidden",
+    )
 
 def main():
     # Cho phép override từ biến môi trường (hữu ích cho Docker)
@@ -2919,7 +2867,7 @@ def main():
     if server_name == "0.0.0.0" and os.getenv("GRADIO_SHARE") is None:
         share = False
 
-    demo.queue().launch(server_name=server_name, server_port=server_port, share=share)
+    demo.queue().launch(server_name=server_name, server_port=server_port, share=share, i18n=i18n)
 
 if __name__ == "__main__":
     main()

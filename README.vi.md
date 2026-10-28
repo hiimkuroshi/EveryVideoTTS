@@ -27,7 +27,7 @@ Biến văn bản, PDF và phụ đề SRT thành giọng đọc tiếng Việt 
 - 📄 **Đọc văn bản dài & PDF**, kèm chế độ **hội thoại / podcast** nhiều người nói.
 - 😄 **Tag cảm xúc** *(thử nghiệm)*: chèn `[cười]`, `[thở dài]`, `[hắng giọng]` ngay trong văn bản.
 - 💻 **Chạy trên mọi máy** — CPU không cần PyTorch (ONNX, int8 mặc định), PyTorch trên GPU NVIDIA và Apple Silicon, có thêm bản cho Intel Arc (XPU).
-- 🎨 **Giao diện Studio** — Gradio thiết kế lại, hỗ trợ giao diện sáng và tối.
+- 🎨 **Giao diện Studio** — Gradio thiết kế lại, mặc định giao diện tối (có chế độ sáng): trạng thái model trên thanh tiêu đề, tiến độ và thời gian còn lại theo thời gian thực, chèn tag cảm xúc bằng một chạm, dùng tốt trên điện thoại.
 
 ## 📌 Mục lục
 
@@ -80,10 +80,14 @@ Biến văn bản, PDF và phụ đề SRT thành giọng đọc tiếng Việt 
 
 ## 🎛️ 2. Sử dụng Studio <a name="studio"></a>
 
-1. **Tải model** — chọn *Backbone* (trên CPU, `VieNeu-TTS-v3-Turbo (int8)` là nhanh nhất) và *Device*, rồi bấm **Tải Model**.
-2. **🦜 Đọc truyện** — dán văn bản hoặc trích xuất từ PDF, chọn giọng có sẵn hoặc chuyển sang **Voice Cloning**, rồi bấm **Bắt đầu**.
-3. **🎬 Lồng tiếng SRT** — xem mục tiếp theo.
-4. **🎭 Hội thoại** — xuất hiện khi model đang tải hỗ trợ hội thoại nhiều người. Viết kịch bản dạng `Tên: lời thoại`, gán giọng cho từng nhân vật và chỉnh khoảng lặng giữa các lượt nói.
+Studio mở ở giao diện tối (đổi sáng/tối bằng nút mặt trời/mặt trăng trên thanh tiêu đề). Thanh tiêu đề luôn cho biết model nào đang dùng; khung **Kết quả** bên phải hiện tiến độ, thời gian còn lại, trình phát và nút **Tải xuống WAV**.
+
+1. **Tải model** — trong **Cấu hình model**, chọn *Model* (trên CPU, `VieNeu-TTS-v3-Turbo (int8)` là nhanh nhất) và *Thiết bị*, rồi bấm **Tải model**. Khung này tự thu gọn khi model sẵn sàng; bấm vào để đổi model. Mục **Gợi ý chọn model** có lời khuyên cho máy CPU / GPU / model tuỳ chỉnh.
+2. **Đọc văn bản** — dán văn bản hoặc nhập từ file PDF. Với model v3, các nút **Chèn cảm xúc** chèn `[cười]`, `[hắng giọng]`, `[thở dài]` vào vị trí con trỏ. Chọn **Giọng có sẵn** hoặc **Clone giọng**, rồi bấm **Tạo giọng nói**.
+3. **Lồng tiếng SRT** — xem mục tiếp theo.
+4. **Hội thoại** — xuất hiện khi model đang tải hỗ trợ hội thoại nhiều người. Viết kịch bản dạng `Tên: lời thoại`, bấm **Quét nhân vật** để nhận diện, gán giọng cho từng nhân vật và chỉnh khoảng lặng giữa các lượt nói.
+
+Temperature, độ dài mỗi đoạn và xử lý theo lô trên GPU nằm trong **Tinh chỉnh nâng cao**. Nút **Dừng** dừng tác vụ đang chạy.
 
 ---
 
@@ -91,15 +95,15 @@ Biến văn bản, PDF và phụ đề SRT thành giọng đọc tiếng Việt 
 
 ![Tab lồng tiếng SRT](docs/images/studio-srt.png)
 
-1. Tải lên file `.srt` / `.txt` (hoặc dán phụ đề) rồi bấm **Quét & Phân tích SRT** để kiểm tra câu thoại và nhận diện nhân vật.
-2. Chọn giọng đọc chính (giọng có sẵn hoặc giọng clone). Ở mục **Phân vai nhân vật**, có thể gán giọng riêng cho từng nhân vật.
-3. Chỉnh các tùy chọn thời gian, rồi bấm **Bắt đầu lồng tiếng SRT**.
+1. **Phụ đề** — tải lên file `.srt` / `.txt` (hoặc dán phụ đề) rồi bấm **Phân tích phụ đề**. Bảng tóm tắt hiện số câu, độ dài timeline, các nhân vật và vài câu đầu.
+2. **Giọng đọc** — chọn giọng đọc chính (giọng có sẵn hoặc giọng clone). Mục **Phân vai theo nhân vật** tự mở khi tìm thấy nhân vật; gán giọng riêng cho từng người ở đó.
+3. **Đồng bộ thời gian** — chỉnh các tùy chọn thời gian, rồi bấm **Bắt đầu lồng tiếng**.
 
 | Tùy chọn | Giá trị | Tác dụng |
 |---|---|---|
-| Chế độ căn chỉnh Timeline | **Strict Sync** *(mặc định)* / Sequential | Strict Sync bắt đầu mỗi câu đúng mốc thời gian và chèn khoảng lặng vào chỗ trống (nếu câu trước vẫn bị tràn, câu sau đọc nối ngay sau đó). Sequential đọc nối tiếp các câu và giữ nguyên khoảng cách gốc giữa các phụ đề. |
+| Chế độ timeline | **Khớp mốc thời gian** (Strict Sync, *mặc định*) / Đọc nối tiếp (Sequential) | Strict Sync bắt đầu mỗi câu đúng mốc thời gian và chèn khoảng lặng vào chỗ trống (nếu câu trước vẫn bị tràn, câu sau đọc nối ngay sau đó). Sequential đọc nối tiếp các câu và giữ nguyên khoảng cách gốc giữa các phụ đề. |
 | Độ trễ đầu (Lead-in) | 0–5 giây | Khoảng lặng trước câu đầu tiên. |
-| Khớp tốc độ tự động | **Tự động tăng tốc** *(mặc định)* / Ép khớp 100% / Giữ 1.0× | Tự động tăng tốc chỉ tăng tốc những câu bị tràn khung. Ép khớp 100% tăng hoặc giảm tốc (chậm nhất 0.8×) mọi câu cho vừa khung. Giữ 1.0× không đổi tốc độ. |
+| Khớp tốc độ | **Tự động tăng tốc** *(mặc định)* / Ép khớp 100% / Giữ 1.0× | Tự động tăng tốc chỉ tăng tốc những câu bị tràn khung. Ép khớp 100% tăng hoặc giảm tốc (chậm nhất 0.8×) mọi câu cho vừa khung. Giữ 1.0× không đổi tốc độ. |
 | Tốc độ tối đa | 1.1–3.0× (mặc định 2.0×) | Giới hạn mức tăng tốc để giọng vẫn dễ nghe. |
 
 Kết quả là một track WAV (48 kHz với v3 Turbo) khớp với video của bạn.
