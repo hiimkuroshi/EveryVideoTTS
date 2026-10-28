@@ -1,1 +1,1 @@
-# VieNeu-TTS Apps package
+# EveryVideoTTS Apps package

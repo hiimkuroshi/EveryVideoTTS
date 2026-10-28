@@ -7,7 +7,7 @@ on:
 
 jobs:
   build_and_publish:
-    name: Build & Publish VieNeu-TTS
+    name: Build & Publish EveryVideoTTS
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

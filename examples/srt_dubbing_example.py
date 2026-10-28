@@ -1,5 +1,5 @@
 """
-Ví dụ sử dụng tính năng lồng tiếng phim từ phụ đề SRT với VieNeu-TTS.
+Ví dụ sử dụng tính năng lồng tiếng phim từ phụ đề SRT với EveryVideoTTS.
 Hỗ trợ cả giọng đọc đơn (single-speaker) và phân vai đa nhân vật (multi-speaker).
 """
 

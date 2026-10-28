@@ -1,1 +1,1 @@
-# VieNeu-TTS Examples package
+# EveryVideoTTS Examples package

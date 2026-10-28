@@ -1,5 +1,5 @@
 """
-VieNeu-TTS SDK Example: Remote Mode
+EveryVideoTTS SDK Example: Remote Mode
 Version: 1.1.6
 """
 

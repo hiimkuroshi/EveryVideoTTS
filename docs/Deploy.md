@@ -1,4 +1,4 @@
-# 🐳 Docker Deployment Guide for VieNeu-TTS
+# 🐳 Docker Deployment Guide for EveryVideoTTS
 
 ## 📋 Table of Contents
 
@@ -67,10 +67,10 @@ The Production environment uses `docker/docker-compose.prod.yml`. Source code wi
 
 ### 1. Build Docker Image
 
-Copy `.env.example` to `.env` and set your image name (e.g., `myregistry.com/vieneu-tts-gpu`):
+Copy `.env.example` to `.env` and set your image name (e.g., `myregistry.com/everyvideotts-gpu`):
 
 ```bash
-IMAGE_NAME=myregistry.com/vieneu-tts-gpu
+IMAGE_NAME=myregistry.com/everyvideotts-gpu
 IMAGE_TAG=v1.0.0
 ```
 
@@ -122,7 +122,7 @@ make docker-build-serve
 make docker-push-serve
 ```
 
-*Note: The image is tagged `pnnbao97/vieneu-tts:serve` by default. Update the Makefile if you use a different registry.*
+*Note: The image is tagged `everyvideotts:serve` by default. To push to your own registry, pass `SERVE_IMAGE=<your-user>/everyvideotts:serve` to both make targets.*
 
 ### 2. User Experience
 
@@ -131,7 +131,7 @@ Once pushed, ANY user with an NVIDIA GPU can run your server with a single comma
 ```bash
 docker run --runtime nvidia --gpus all \
   -v ~/.cache/huggingface:/root/.cache/huggingface \
-  pnnbao97/vieneu-tts:serve
+  <your-user>/everyvideotts:serve
 ```
 
 This image is optimized purely for serving the API (minimal size, pre-installed dependencies).

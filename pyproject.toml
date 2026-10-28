@@ -34,7 +34,7 @@ explicit = true
 [project]
 name = "vieneu"
 version = "3.2.5"
-description = "Advanced on-device Vietnamese TTS with instant voice cloning"
+description = "EveryVideoTTS — Vietnamese TTS, instant voice cloning & SRT video dubbing studio"
 readme = "README_PYPI.md"
 license = { file = "LICENSE" }
 classifiers = [
@@ -87,7 +87,7 @@ dependencies = [
 "Bug Tracker" = "https://github.com/hiimkuroshi/EveryVideoTTS/issues"
 "Documentation" = "https://github.com/hiimkuroshi/EveryVideoTTS/blob/main/README.md"
 "Source Code" = "https://github.com/hiimkuroshi/EveryVideoTTS"
-"Changelog" = "https://github.com/pnnbao97/VieNeu-TTS/releases"
+"Changelog" = "https://github.com/hiimkuroshi/EveryVideoTTS/releases"
 
 [project.optional-dependencies]
 legacy = [
